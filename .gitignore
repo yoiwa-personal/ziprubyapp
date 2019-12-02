@@ -1,4 +1,5 @@
 trys*
 *.rbz
+*.gem
 man/*.1
 man/*.html
