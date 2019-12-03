@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta http-equiv='content-type' value='text/html;charset=utf8'>
+  <meta name='generator' value='Ronn/v0.7.3 (http://github.com/rtomayko/ronn/tree/0.7.3)'>
+  <title>ziprubyapp(1) - Make an executable Ruby script bundle using zip archive</title>
+  <style type='text/css' media='all'>
+  /* style: man */
+  body#manpage {margin:0}
+  .mp {max-width:100ex;padding:0 9ex 1ex 4ex}
+  .mp p,.mp pre,.mp ul,.mp ol,.mp dl {margin:0 0 20px 0}
+  .mp h2 {margin:10px 0 0 0}
+  .mp > p,.mp > pre,.mp > ul,.mp > ol,.mp > dl {margin-left:8ex}
+  .mp h3 {margin:0 0 0 4ex}
+  .mp dt {margin:0;clear:left}
+  .mp dt.flush {float:left;width:8ex}
+  .mp dd {margin:0 0 0 9ex}
+  .mp h1,.mp h2,.mp h3,.mp h4 {clear:left}
+  .mp pre {margin-bottom:20px}
+  .mp pre+h2,.mp pre+h3 {margin-top:22px}
+  .mp h2+pre,.mp h3+pre {margin-top:5px}
+  .mp img {display:block;margin:auto}
+  .mp h1.man-title {display:none}
+  .mp,.mp code,.mp pre,.mp tt,.mp kbd,.mp samp,.mp h3,.mp h4 {font-family:monospace;font-size:14px;line-height:1.42857142857143}
+  .mp h2 {font-size:16px;line-height:1.25}
+  .mp h1 {font-size:20px;line-height:2}
+  .mp {text-align:justify;background:#fff}
+  .mp,.mp code,.mp pre,.mp pre code,.mp tt,.mp kbd,.mp samp {color:#131211}
+  .mp h1,.mp h2,.mp h3,.mp h4 {color:#030201}
+  .mp u {text-decoration:underline}
+  .mp code,.mp strong,.mp b {font-weight:bold;color:#131211}
+  .mp em,.mp var {font-style:italic;color:#232221;text-decoration:none}
+  .mp a,.mp a:link,.mp a:hover,.mp a code,.mp a pre,.mp a tt,.mp a kbd,.mp a samp {color:#0000ff}
+  .mp b.man-ref {font-weight:normal;color:#434241}
+  .mp pre {padding:0 4ex}
+  .mp pre code {font-weight:normal;color:#434241}
+  .mp h2+pre,h3+pre {padding-left:0}
+  ol.man-decor,ol.man-decor li {margin:3px 0 10px 0;padding:0;float:left;width:33%;list-style-type:none;text-transform:uppercase;color:#999;letter-spacing:1px}
+  ol.man-decor {width:100%}
+  ol.man-decor li.tl {text-align:left}
+  ol.man-decor li.tc {text-align:center;letter-spacing:4px}
+  ol.man-decor li.tr {text-align:right;float:right}
+  </style>
+</head>
+<!--
+  The following styles are deprecated and will be removed at some point:
+  div#man, div#man ol.man, div#man ol.head, div#man ol.man.
+
+  The .man-page, .man-decor, .man-head, .man-foot, .man-title, and
+  .man-navigation should be used instead.
+-->
+<body id='manpage'>
+  <div class='mp' id='man'>
+
+  <div class='man-navigation' style='display:none'>
+    <a href="#NAME">NAME</a>
+    <a href="#SYNOPSIS">SYNOPSIS</a>
+    <a href="#DESCRIPTION">DESCRIPTION</a>
+    <a href="#OPTIONS">OPTIONS</a>
+    <a href="#LIMITATIONS">LIMITATIONS</a>
+    <a href="#IMPLEMENTATION">IMPLEMENTATION</a>
+    <a href="#DEPENDENCIES">DEPENDENCIES</a>
+    <a href="#REFERENCE">REFERENCE</a>
+    <a href="#AUTHOR-COPYRIGHT">AUTHOR/COPYRIGHT</a>
+  </div>
+
+  <ol class='man-decor man-head man head'>
+    <li class='tl'>ziprubyapp(1)</li>
+    <li class='tc'></li>
+    <li class='tr'>ziprubyapp(1)</li>
+  </ol>
+
+  <h2 id="NAME">NAME</h2>
+<p class="man-name">
+  <code>ziprubyapp</code> - <span class="man-whatis">Make an executable Ruby script bundle using zip archive</span>
+</p>
+
+<h2 id="SYNOPSIS">SYNOPSIS</h2>
+
+<pre><code>ziprubyapp [options] {directory | file ...}
+
+Options:
+  -C, --compress[=VAL]             compression level
+  -o, --output=FILE                output file
+  -m, --main=MOD                   name of main module to be loaded
+  -B, --base64                     encode archive with BASE64
+  -D, --provide-data-handle        provide DATA pseudo filehandle
+  --help                           show help
+</code></pre>
+
+<h2 id="DESCRIPTION">DESCRIPTION</h2>
+
+<p>This program bundles several Ruby module files and wraps them as an
+"executable" zip archive.  An output file can be invoked as a Ruby
+script, or (if a source file contains a "<code>#!</code>" line) as a directly
+executable command.  Also, it can be handled by (almost every) zip
+archiver as an "sfx" file.</p>
+
+<p>Inside Ruby scripts, the language's <code>require</code> facility is extended so
+that The program can simply use <code>require</code> or <code>require-relative</code>
+statements to load the contained modules, without modifying the
+<code>$:</code> variable.</p>
+
+<h2 id="OPTIONS">OPTIONS</h2>
+
+<h3 id="ARGUMENTS">ARGUMENTS</h3>
+
+<ul>
+<li><p>directory</p>
+
+<p>If there are only one argument and it is a name of directory, All
+<code>*.rb</code> files under that directory (recursively) are included.  The
+directory name itself is truncated.</p></li>
+<li><p>files</p>
+
+<p>Otherwise, all files specified in the argument are included.</p></li>
+</ul>
+
+
+<h3 id="INPUT-OUTPUT-OPTIONS">INPUT/OUTPUT OPTIONS</h3>
+
+<ul>
+<li><p>--main, -m</p>
+
+<p>Specify the main module which is automatically loaded.  Also, a
+"she-bang" line and continuous comment lines are copied from the main
+module to the output.</p>
+
+<p>If a directory is specified in the argument, and there is a <code>__main__.rb</code>
+file on top of the directory, that file will be used.  Otherwise, the
+main module must be explicitly specified.</p></li>
+<li><p>--output, -o</p>
+
+<p>Specify the name of the output file.</p>
+
+<p>If omitted, either the name of the source directory or the base name
+of the main module is taken, with a postfix '<code>.rbz</code>' is appended.</p>
+
+<p>It is always safer to specify the output file.</p></li>
+<li><p>--provide-data-handle, -D</p>
+
+<p>Simulate the DATA file handle for the main module.
+If enabled, it will set <code>DATA</code> constant to a simulated pseudo
+file handle, providing the script data after <code>__END__</code> token.</p>
+
+<p>If the main module does not contain the token, it is ignored.</p>
+
+<p>It is implemented with StringIO in Ruby.  For both performance and
+simplicity, the relative position of the <code>__END__</code> token in the
+input is remembered when the script is generated.  If you replace
+the main module by zip archivers, the data will be broken.</p></li>
+</ul>
+
+
+<h3 id="ARCHIVE-OPTIONS">ARCHIVE OPTIONS</h3>
+
+<ul>
+<li><p>--compress, -C</p>
+
+<p>Specify the compression level for the Deflate algorithm.</p>
+
+<p>If <code>-C</code> is specified without a digit, the highest level 9 is set.</p>
+
+<p>If not specified at all, the files are not compressed.
+It makes the content of the script almost transparently visible.
+Also, the script will not load zlib and other libraries run-time.</p>
+
+<p>Outputs generated without <code>-C</code> options will not contain decompression
+functionality, that means you need to add <code>-0</code> or similar options
+when you modify the contents with zip archivers.</p></li>
+<li><p>--base64, -B</p>
+
+<p>It will encode the embedded ZIP archive with Base64 encoding.  It
+makes the script about 33% larger and also loses zip-transparent
+behavior as an sfx file, in trade for making the output script
+ASCII-clean.</p></li>
+</ul>
+
+
+<h2 id="LIMITATIONS">LIMITATIONS</h2>
+
+<ul>
+<li><p>Only pure Ruby scripts or modules can be loaded from zip
+archive. Dynamic loading (<em>.so, </em>.dll) will not be available.</p></li>
+<li><p><code>__FILE__</code> tokens in the archived file will have virtual values
+of "<em>archivename</em>/<em>modulename</em>", which does not exist in the real
+file system.  This also holds for the "main script" to be referred
+to.  It means that the common technique for making a "dual-use"
+module/script "<code>if __FILE__ == $0</code>" will not work.  Instead, please
+provide a short entry script as a main script.</p></li>
+<li><p>For compactness (and minimal dependency only to core modules), an
+embedded parser for zip archives is extremely simple.  It can not
+parse archives with any advanced features or partially-broken
+archives.  If you modify the packed archive using usual zip
+archivers, be aware of that.</p></li>
+<li><p>All files are decoded into the memory at the beginning of the
+program execution.  It is not wise to include unneeded files into
+the archive.</p></li>
+</ul>
+
+
+<h2 id="IMPLEMENTATION">IMPLEMENTATION</h2>
+
+<p>A zip archive of module files are stored in the <code>DATA</code> section.  A
+minimal parser for Zip archives is embedded to the output script, and
+it will extract the source codes of all modules to an on-memory
+storage at the start-up.  The functions <code>require</code> and <code>require_relative</code>
+in the Kernel module is extended load those modules.</p>
+
+<h2 id="DEPENDENCIES">DEPENDENCIES</h2>
+
+<p>Zipped scripts generated by this command will not depend on any
+external modules, except those included in the core modules of Ruby
+distributions as of version 2.3.1.</p>
+
+<p>This command itself is depending on the <code>zip</code> command from Info-Zip.
+It must be available in the command search path.</p>
+
+<h2 id="REFERENCE">REFERENCE</h2>
+
+<ul>
+<li><p><a href="https://www.github.com/yoiwa-personal/ziprubyapp">Homepage</a></p></li>
+<li><p><a href="https://docs.python.org/en/3/library/zipapp.html">Python's "zipapp" implementation</a></p></li>
+</ul>
+
+
+<h2 id="AUTHOR-COPYRIGHT">AUTHOR/COPYRIGHT</h2>
+
+<p>Copyright 2019 Yutaka OIWA <a href="&#x6d;&#x61;&#x69;&#108;&#116;&#111;&#x3a;&#121;&#x75;&#x74;&#97;&#107;&#x61;&#64;&#x6f;&#x69;&#x77;&#97;&#46;&#106;&#x70;" data-bare-link="true">&#x79;&#x75;&#116;&#97;&#x6b;&#x61;&#x40;&#x6f;&#x69;&#119;&#x61;&#46;&#x6a;&#x70;</a>.</p>
+
+<p>Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at</p>
+
+<p>   http://www.apache.org/licenses/LICENSE-2.0</p>
+
+<p>Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.</p>
+
+<p>As a special exception to the Apache License, outputs of this
+software, which contain a code snippet copied from this software, may
+be used and distributed under terms of your choice, so long as the
+sole purpose of these works is not redistributing the code snippet,
+this software, or modified works of those.  The "AS-IS BASIS" clause
+above still applies in these cases.</p>
+
+<p>(In short, you can freely use this software to package YOUR software
+and the Apache License will not apply for YOURS.)</p>
+
+
+  <ol class='man-decor man-foot man foot'>
+    <li class='tl'></li>
+    <li class='tc'>December 2019</li>
+    <li class='tr'>ziprubyapp(1)</li>
+  </ol>
+
+  </div>
+</body>
+</html>

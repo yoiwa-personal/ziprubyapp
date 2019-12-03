@@ -1,0 +1,162 @@
+.\" generated with Ronn/v0.7.3
+.\" http://github.com/rtomayko/ronn/tree/0.7.3
+.
+.TH "ZIPRUBYAPP" "1" "December 2019" "" ""
+.
+.SH "NAME"
+\fBziprubyapp\fR \- Make an executable Ruby script bundle using zip archive
+.
+.SH "SYNOPSIS"
+.
+.nf
+
+ziprubyapp [options] {directory | file \.\.\.}
+
+Options:
+  \-C, \-\-compress[=VAL]             compression level
+  \-o, \-\-output=FILE                output file
+  \-m, \-\-main=MOD                   name of main module to be loaded
+  \-B, \-\-base64                     encode archive with BASE64
+  \-D, \-\-provide\-data\-handle        provide DATA pseudo filehandle
+  \-\-help                           show help
+.
+.fi
+.
+.SH "DESCRIPTION"
+This program bundles several Ruby module files and wraps them as an "executable" zip archive\. An output file can be invoked as a Ruby script, or (if a source file contains a "\fB#!\fR" line) as a directly executable command\. Also, it can be handled by (almost every) zip archiver as an "sfx" file\.
+.
+.P
+Inside Ruby scripts, the language\'s \fBrequire\fR facility is extended so that The program can simply use \fBrequire\fR or \fBrequire\-relative\fR statements to load the contained modules, without modifying the \fB$:\fR variable\.
+.
+.SH "OPTIONS"
+.
+.SS "ARGUMENTS"
+.
+.IP "\(bu" 4
+directory
+.
+.IP
+If there are only one argument and it is a name of directory, All \fB*\.rb\fR files under that directory (recursively) are included\. The directory name itself is truncated\.
+.
+.IP "\(bu" 4
+files
+.
+.IP
+Otherwise, all files specified in the argument are included\.
+.
+.IP "" 0
+.
+.SS "INPUT/OUTPUT OPTIONS"
+.
+.IP "\(bu" 4
+\-\-main, \-m
+.
+.IP
+Specify the main module which is automatically loaded\. Also, a "she\-bang" line and continuous comment lines are copied from the main module to the output\.
+.
+.IP
+If a directory is specified in the argument, and there is a \fB__main__\.rb\fR file on top of the directory, that file will be used\. Otherwise, the main module must be explicitly specified\.
+.
+.IP "\(bu" 4
+\-\-output, \-o
+.
+.IP
+Specify the name of the output file\.
+.
+.IP
+If omitted, either the name of the source directory or the base name of the main module is taken, with a postfix \'\fB\.rbz\fR\' is appended\.
+.
+.IP
+It is always safer to specify the output file\.
+.
+.IP "\(bu" 4
+\-\-provide\-data\-handle, \-D
+.
+.IP
+Simulate the DATA file handle for the main module\. If enabled, it will set \fBDATA\fR constant to a simulated pseudo file handle, providing the script data after \fB__END__\fR token\.
+.
+.IP
+If the main module does not contain the token, it is ignored\.
+.
+.IP
+It is implemented with StringIO in Ruby\. For both performance and simplicity, the relative position of the \fB__END__\fR token in the input is remembered when the script is generated\. If you replace the main module by zip archivers, the data will be broken\.
+.
+.IP "" 0
+.
+.SS "ARCHIVE OPTIONS"
+.
+.IP "\(bu" 4
+\-\-compress, \-C
+.
+.IP
+Specify the compression level for the Deflate algorithm\.
+.
+.IP
+If \fB\-C\fR is specified without a digit, the highest level 9 is set\.
+.
+.IP
+If not specified at all, the files are not compressed\. It makes the content of the script almost transparently visible\. Also, the script will not load zlib and other libraries run\-time\.
+.
+.IP
+Outputs generated without \fB\-C\fR options will not contain decompression functionality, that means you need to add \fB\-0\fR or similar options when you modify the contents with zip archivers\.
+.
+.IP "\(bu" 4
+\-\-base64, \-B
+.
+.IP
+It will encode the embedded ZIP archive with Base64 encoding\. It makes the script about 33% larger and also loses zip\-transparent behavior as an sfx file, in trade for making the output script ASCII\-clean\.
+.
+.IP "" 0
+.
+.SH "LIMITATIONS"
+.
+.IP "\(bu" 4
+Only pure Ruby scripts or modules can be loaded from zip archive\. Dynamic loading (\fI\.so,\fR\.dll) will not be available\.
+.
+.IP "\(bu" 4
+\fB__FILE__\fR tokens in the archived file will have virtual values of "\fIarchivename\fR/\fImodulename\fR", which does not exist in the real file system\. This also holds for the "main script" to be referred to\. It means that the common technique for making a "dual\-use" module/script "\fBif __FILE__ == $0\fR" will not work\. Instead, please provide a short entry script as a main script\.
+.
+.IP "\(bu" 4
+For compactness (and minimal dependency only to core modules), an embedded parser for zip archives is extremely simple\. It can not parse archives with any advanced features or partially\-broken archives\. If you modify the packed archive using usual zip archivers, be aware of that\.
+.
+.IP "\(bu" 4
+All files are decoded into the memory at the beginning of the program execution\. It is not wise to include unneeded files into the archive\.
+.
+.IP "" 0
+.
+.SH "IMPLEMENTATION"
+A zip archive of module files are stored in the \fBDATA\fR section\. A minimal parser for Zip archives is embedded to the output script, and it will extract the source codes of all modules to an on\-memory storage at the start\-up\. The functions \fBrequire\fR and \fBrequire_relative\fR in the Kernel module is extended load those modules\.
+.
+.SH "DEPENDENCIES"
+Zipped scripts generated by this command will not depend on any external modules, except those included in the core modules of Ruby distributions as of version 2\.3\.1\.
+.
+.P
+This command itself is depending on the \fBzip\fR command from Info\-Zip\. It must be available in the command search path\.
+.
+.SH "REFERENCE"
+.
+.IP "\(bu" 4
+Homepage \fIhttps://www\.github\.com/yoiwa\-personal/ziprubyapp\fR
+.
+.IP "\(bu" 4
+Python\'s "zipapp" implementation \fIhttps://docs\.python\.org/en/3/library/zipapp\.html\fR
+.
+.IP "" 0
+.
+.SH "AUTHOR/COPYRIGHT"
+Copyright 2019 Yutaka OIWA \fIyutaka@oiwa\.jp\fR\.
+.
+.P
+Licensed under the Apache License, Version 2\.0 (the "License"); you may not use this file except in compliance with the License\. You may obtain a copy of the License at
+.
+.P
+http://www\.apache\.org/licenses/LICENSE\-2\.0
+.
+.P
+Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied\. See the License for the specific language governing permissions and limitations under the License\.
+.
+.P
+As a special exception to the Apache License, outputs of this software, which contain a code snippet copied from this software, may be used and distributed under terms of your choice, so long as the sole purpose of these works is not redistributing the code snippet, this software, or modified works of those\. The "AS\-IS BASIS" clause above still applies in these cases\.
+.
+.P
+(In short, you can freely use this software to package YOUR software and the Apache License will not apply for YOURS\.)
