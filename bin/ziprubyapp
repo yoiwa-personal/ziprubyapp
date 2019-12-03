@@ -1,4 +1,4 @@
-#!/usr/bin/ruby
+#!/usr/bin/env ruby
 # -*- ruby -*-
 # ziprubyapp - Make an executable ruby script bundle using zip archive
 #
@@ -21,7 +21,7 @@
 VERSION = "1.0"
 
 require 'optparse'
-require 'tmpdir'
+require 'tempfile'
 require 'find'
 
 def die str; $stderr.print("Error: #{str}\n"); exit 1; end
@@ -30,6 +30,7 @@ compression = 0
 out = nil
 mainopt = nil
 base64 = false
+simulate_data = false
 
 opt = OptionParser.new
 
@@ -39,6 +40,7 @@ opt.on('-C', '--compress[=VAL]', Integer, "compression level") { |v| compression
 opt.on('-o FILE', '--output=FILE', "output file") { |v| out = v }
 opt.on('-m MOD', '--main=MOD', "name of main module to be loaded") { |v| mainopt = v }
 opt.on('-B', '--base64', "encode archive with BASE64") { |v| base64 = true }
+opt.on('-D', '--provide-data-handle', "provide DATA pseudo filehandle") { simulate_data = true }
 
 opt.parse!(ARGV)
 
@@ -96,7 +98,11 @@ if (dir != nil)
     die "cannot guess main script"
   end
 else
-  files = ARGV.dup
+  ARGV.each { |f|
+    f = f.sub(/^\.\//, '')
+    files << f if /\.rb$/ =~ f
+  }
+  main = main.sub(/^\.\//, '')
 end
 
 die "no main files guessed" unless main != nil
@@ -116,7 +122,21 @@ open(main, "rb") { |mainf|
   }
 }
 
-shebang = "#!/usr/bin/ruby\n" if shebang == ''
+mode = 0o666
+mode = 0o777 if (/\A#!/ =~ shebang);
+
+if simulate_data
+  require 'ripper'
+  open(main, "rb") { |mainf|
+    # depending on that ripper stops reading at __END__ token
+    lex = Ripper.lex(mainf)
+    if lex[-1] and lex[-1][1] == :on___end__
+      simulate_data = mainf.pos
+    else
+      simulate_data = false
+    end
+  }
+end
 
 # get zip data
 
@@ -124,9 +144,11 @@ ENV.delete('ZIPOPT')
 ENV.delete('ZIP')
 
 zipdat = ''
-Dir.mktmpdir { |tmpdir|
-  tmpfname = "#{tmpdir}/zipapp.zip"
-
+Tempfile.create(["zipapp", ".zip"]) {|fp|
+  tmpfname = fp.path
+  fp.write("PK\5\6\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0")
+  # minimal empty ZIP structure to make zip happy
+  fp.flush
   system("zip", "-X", "-#{compression}", tmpfname, "--", *files) or die "zip failed"
 
   Dir.chdir cwd;
@@ -143,8 +165,11 @@ end
 
 # prepare launching script
 
-config = {main: main, dequote: quote}
-features = ["MAIN"] + (quote ? ["QUOTE"] : []) + (compression != 0 ? ["COMPRESSION"] : [])
+config = {main: main, dequote: quote, simulate_data: simulate_data}
+features = ["MAIN"] +
+           (quote ? ["QUOTE"] : []) +
+           (compression != 0 ? ["COMPRESSION"] : []) +
+           (simulate_data ? ["SIMULATEDATA"] : [])
 
 def script(features, replace)
   script = <<'EOS'
@@ -261,6 +286,17 @@ module ZipRubyApp
     end
   end
   DATA.close
+#BEGIN SIMULATEDATA
+
+  if self::CONFIG[:simulate_data]
+    require 'stringio'
+    pos = self::CONFIG[:simulate_data]
+    str = self.get_main().code
+    str = str.byteslice(pos, str.bytesize - pos)
+    Object.send(:remove_const, :DATA)
+    Object.send(:const_set, :DATA, StringIO.new(str))
+  end
+#END SIMULATEDATA
 end
 
 module Kernel
@@ -293,7 +329,7 @@ module Kernel
   end
 end
 
-p ZipRubyApp.get_main.load(true)
+ZipRubyApp.get_main.load(true)
 __END__
 EOS
 
@@ -311,7 +347,7 @@ script = script(
 
 print "writing to #{out}\n"
 
-open(out, "wb", 0o777) { |of|
+open(out, "wb", mode) { |of|
   of.write shebang;
   of.write "\n";
   of.write script;

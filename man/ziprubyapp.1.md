@@ -10,13 +10,14 @@ ziprubyapp (1) - Make an executable Ruby script bundle using zip archive
       -o, --output=FILE                output file
       -m, --main=MOD                   name of main module to be loaded
       -B, --base64                     encode archive with BASE64
+      -D, --provide-data-handle        provide DATA pseudo filehandle
       --help                           show help
 
 ## DESCRIPTION
 
 This program bundles several Ruby module files and wraps them as an
 "executable" zip archive.  An output file can be invoked as a Ruby
-script, or (if a source file contains a C<"#!"> line) as a directly
+script, or (if a source file contains a "`#!`" line) as a directly
 executable command.  Also, it can be handled by (almost every) zip
 archiver as an "sfx" file.
 
@@ -56,10 +57,23 @@ statements to load the contained modules, without modifying the
   Specify the name of the output file.
 
   If omitted, either the name of the source directory or the base name
-  of the main module is taken, with a postfix C<'.rbz'> is appended.
+  of the main module is taken, with a postfix '`.rbz`' is appended.
 
   It is always safer to specify the output file.
   
+* --provide-data-handle, -D
+
+  Simulate the DATA file handle for the main module.
+  If enabled, it will set `DATA` constant to a simulated pseudo
+  file handle, providing the script data after `__END__` token.
+
+  If the main module does not contain the token, it is ignored.
+
+  It is implemented with StringIO in Ruby.  For both performance and
+  simplicity, the relative position of the `__END__` token in the
+  input is remembered when the script is generated.  If you replace
+  the main module by zip archivers, the data will be broken.
+
 ### ARCHIVE OPTIONS
 
 * --compress, -C
@@ -87,9 +101,6 @@ statements to load the contained modules, without modifying the
 
 * Only pure Ruby scripts or modules can be loaded from zip
   archive. Dynamic loading (*.so, *.dll) will not be available.
-
-* `DATA` handle (data after `__END__` token) is not available,
-  at least at this moment.
 
 * `__FILE__` tokens in the archived file will have virtual values
   of "_archivename_/_modulename_", which does not exist in the real
