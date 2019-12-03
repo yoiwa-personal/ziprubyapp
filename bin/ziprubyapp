@@ -188,7 +188,8 @@ module ZipRubyApp
 
     def initialize(spec, code)
       @spec = spec.untaint
-      @code = code.untaint
+      @encoding = %r/(?:#![^\n]*\r?\n)?#.*coding\s*[=:]\s*([\w\d\-\_]+)/ =~ code ? $1 : 'ASCII-8bit'
+      @code = code.untaint.force_encoding(@encoding)
       @lock = Thread::Mutex.new
       @loaded = false
     end
