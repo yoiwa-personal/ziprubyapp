@@ -16,6 +16,7 @@ Options:
   \-C, \-\-compress[=VAL]             compression level
   \-o, \-\-output=FILE                output file
   \-m, \-\-main=MOD                   name of main module to be loaded
+  \-T, \-\-text\-archive               use text\-based archive format
   \-B, \-\-base64                     encode archive with BASE64
   \-D, \-\-provide\-data\-handle        provide DATA pseudo filehandle
   \-\-help                           show help
@@ -69,18 +70,6 @@ If omitted, either the name of the source directory or the base name of the main
 .IP
 It is always safer to specify the output file\.
 .
-.IP "\(bu" 4
-\-\-provide\-data\-handle, \-D
-.
-.IP
-Simulate the DATA file handle for the main module\. If enabled, it will set \fBDATA\fR constant to a simulated pseudo file handle, providing the script data after \fB__END__\fR token\.
-.
-.IP
-If the main module does not contain the token, it is ignored\.
-.
-.IP
-It is implemented with StringIO in Ruby\. For both performance and simplicity, the relative position of the \fB__END__\fR token in the input is remembered when the script is generated\. If you replace the main module by zip archivers, the data will be broken\.
-.
 .IP "" 0
 .
 .SS "ARCHIVE OPTIONS"
@@ -105,6 +94,37 @@ Outputs generated without \fB\-C\fR options will not contain decompression funct
 .
 .IP
 It will encode the embedded ZIP archive with Base64 encoding\. It makes the script about 33% larger and also loses zip\-transparent behavior as an sfx file, in trade for making the output script ASCII\-clean\.
+.
+.IP "\(bu" 4
+\-\-text\-archive, \-T
+.
+.IP
+It will use its own plaintext archive format for storing modules\. The output will not be compatible with zip archivers\.
+.
+.IP
+Output scripts generated with this option will be plaintext, if all input modules are plaintext in ASCII or some specific ASCII\-compatible encoding\. In addition to that, it is easier to modify its content by hand, because the format uses no byte\-oriented structure\.
+.
+.IP
+This format will be useful when (1) you need to edit module sources embedded in outputs by text editors, or (2) when the whole source code must be transparently visible for auditing or inspections (if even \fB\-C0\fR is unsatisfactory)\.
+.
+.IP
+The option combination with \fB\-B\fR is possible, but it is not very meaningful\.
+.
+.IP "" 0
+.
+.SS "CONTENT HANDLING OPTIONS"
+.
+.IP "\(bu" 4
+\-\-provide\-data\-handle, \-D
+.
+.IP
+Simulate the DATA file handle for the main module\. If enabled, it will set \fBDATA\fR constant to a simulated pseudo file handle, providing the script data after \fB__END__\fR token\.
+.
+.IP
+If the main module does not contain the token, it is ignored\.
+.
+.IP
+It is implemented with StringIO in Ruby\. For both performance and simplicity, the relative position of the \fB__END__\fR token in the input is remembered when the script is generated\. If you replace the main module by zip archivers, the data will be broken\.
 .
 .IP "" 0
 .

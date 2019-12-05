@@ -83,6 +83,7 @@ Options:
   -C, --compress[=VAL]             compression level
   -o, --output=FILE                output file
   -m, --main=MOD                   name of main module to be loaded
+  -T, --text-archive               use text-based archive format
   -B, --base64                     encode archive with BASE64
   -D, --provide-data-handle        provide DATA pseudo filehandle
   --help                           show help
@@ -137,18 +138,6 @@ main module must be explicitly specified.</p></li>
 of the main module is taken, with a postfix '<code>.rbz</code>' is appended.</p>
 
 <p>It is always safer to specify the output file.</p></li>
-<li><p>--provide-data-handle, -D</p>
-
-<p>Simulate the DATA file handle for the main module.
-If enabled, it will set <code>DATA</code> constant to a simulated pseudo
-file handle, providing the script data after <code>__END__</code> token.</p>
-
-<p>If the main module does not contain the token, it is ignored.</p>
-
-<p>It is implemented with StringIO in Ruby.  For both performance and
-simplicity, the relative position of the <code>__END__</code> token in the
-input is remembered when the script is generated.  If you replace
-the main module by zip archivers, the data will be broken.</p></li>
 </ul>
 
 
@@ -174,6 +163,42 @@ when you modify the contents with zip archivers.</p></li>
 makes the script about 33% larger and also loses zip-transparent
 behavior as an sfx file, in trade for making the output script
 ASCII-clean.</p></li>
+<li><p>--text-archive, -T</p>
+
+<p>It will use its own plaintext archive format for storing modules.
+The output will not be compatible with zip archivers.</p>
+
+<p>Output scripts generated with this option will be plaintext, if all
+input modules are plaintext in ASCII or some specific
+ASCII-compatible encoding.  In addition to that, it is easier to
+modify its content by hand, because the format uses no byte-oriented
+structure.</p>
+
+<p>This format will be useful when (1) you need to edit module sources
+embedded in outputs by text editors, or (2) when the whole source
+code must be transparently visible for auditing or inspections (if
+even <code>-C0</code> is unsatisfactory).</p>
+
+<p>The option combination with <code>-B</code> is possible, but it is not very
+meaningful.</p></li>
+</ul>
+
+
+<h3 id="CONTENT-HANDLING-OPTIONS">CONTENT HANDLING OPTIONS</h3>
+
+<ul>
+<li><p>--provide-data-handle, -D</p>
+
+<p>Simulate the DATA file handle for the main module.
+If enabled, it will set <code>DATA</code> constant to a simulated pseudo
+file handle, providing the script data after <code>__END__</code> token.</p>
+
+<p>If the main module does not contain the token, it is ignored.</p>
+
+<p>It is implemented with StringIO in Ruby.  For both performance and
+simplicity, the relative position of the <code>__END__</code> token in the
+input is remembered when the script is generated.  If you replace
+the main module by zip archivers, the data will be broken.</p></li>
 </ul>
 
 
@@ -226,7 +251,7 @@ It must be available in the command search path.</p>
 
 <h2 id="AUTHOR-COPYRIGHT">AUTHOR/COPYRIGHT</h2>
 
-<p>Copyright 2019 Yutaka OIWA <a href="&#x6d;&#x61;&#x69;&#108;&#116;&#111;&#x3a;&#121;&#x75;&#x74;&#97;&#107;&#x61;&#64;&#x6f;&#x69;&#x77;&#97;&#46;&#106;&#x70;" data-bare-link="true">&#x79;&#x75;&#116;&#97;&#x6b;&#x61;&#x40;&#x6f;&#x69;&#119;&#x61;&#46;&#x6a;&#x70;</a>.</p>
+<p>Copyright 2019 Yutaka OIWA <a href="&#109;&#97;&#x69;&#108;&#116;&#x6f;&#x3a;&#x79;&#117;&#116;&#x61;&#x6b;&#x61;&#x40;&#111;&#x69;&#119;&#x61;&#46;&#x6a;&#112;" data-bare-link="true">&#121;&#117;&#x74;&#x61;&#x6b;&#x61;&#x40;&#111;&#x69;&#119;&#97;&#x2e;&#x6a;&#112;</a>.</p>
 
 <p>Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

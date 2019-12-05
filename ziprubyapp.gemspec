@@ -2,7 +2,7 @@
 
 Gem::Specification.new do |s|
   s.name        = 'ziprubyapp'
-  s.version     = '1.0'
+  s.version     = '1.1.0'
   s.licenses    = ['Apache-2.0']
   s.summary     = 'Make an executable ruby script bundle using zip archive'
   s.executables = 'ziprubyapp'
