@@ -9,6 +9,7 @@ ziprubyapp (1) - Make an executable Ruby script bundle using zip archive
       -C, --compress[=VAL]             compression level
       -o, --output=FILE                output file
       -m, --main=MOD                   name of main module to be loaded
+	  -T, --text-archive               use text-based archive format
       -B, --base64                     encode archive with BASE64
       -D, --provide-data-handle        provide DATA pseudo filehandle
       --help                           show help
@@ -61,19 +62,6 @@ statements to load the contained modules, without modifying the
 
   It is always safer to specify the output file.
   
-* --provide-data-handle, -D
-
-  Simulate the DATA file handle for the main module.
-  If enabled, it will set `DATA` constant to a simulated pseudo
-  file handle, providing the script data after `__END__` token.
-
-  If the main module does not contain the token, it is ignored.
-
-  It is implemented with StringIO in Ruby.  For both performance and
-  simplicity, the relative position of the `__END__` token in the
-  input is remembered when the script is generated.  If you replace
-  the main module by zip archivers, the data will be broken.
-
 ### ARCHIVE OPTIONS
 
 * --compress, -C
@@ -96,6 +84,40 @@ statements to load the contained modules, without modifying the
   makes the script about 33% larger and also loses zip-transparent
   behavior as an sfx file, in trade for making the output script
   ASCII-clean.
+
+* --text-archive, -T
+
+  It will use its own plaintext archive format for storing modules.
+  The output will not be compatible with zip archivers.
+
+  Output scripts generated with this option will be plaintext, if all
+  input modules are plaintext in ASCII or some specific
+  ASCII-compatible encoding.  In addition to that, it is easier to
+  modify its content by hand, because the format uses no byte-oriented
+  structure.
+
+  This format will be useful when (1) you need to edit module sources
+  embedded in outputs by text editors, or (2) when the whole source
+  code must be transparently visible for auditing or inspections (if
+  even `-C0` is unsatisfactory).
+
+  The option combination with `-B` is possible, but it is not very
+  meaningful.
+
+### CONTENT HANDLING OPTIONS
+
+* --provide-data-handle, -D
+
+  Simulate the DATA file handle for the main module.
+  If enabled, it will set `DATA` constant to a simulated pseudo
+  file handle, providing the script data after `__END__` token.
+
+  If the main module does not contain the token, it is ignored.
+
+  It is implemented with StringIO in Ruby.  For both performance and
+  simplicity, the relative position of the `__END__` token in the
+  input is remembered when the script is generated.  If you replace
+  the main module by zip archivers, the data will be broken.
 
 ## LIMITATIONS
 

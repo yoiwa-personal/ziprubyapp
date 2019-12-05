@@ -30,6 +30,7 @@ compression = 0
 out = nil
 mainopt = nil
 base64 = false
+textarchive = false
 simulate_data = false
 
 opt = OptionParser.new
@@ -39,6 +40,7 @@ opt.banner += " {directory | files ...}"
 opt.on('-C', '--compress[=VAL]', Integer, "compression level") { |v| compression = (v == nil) ? 9 : v }
 opt.on('-o FILE', '--output=FILE', "output file") { |v| out = v }
 opt.on('-m MOD', '--main=MOD', "name of main module to be loaded") { |v| mainopt = v }
+opt.on('-T', '--text-archive', "use text-based archive format") { |v| textarchive = true }
 opt.on('-B', '--base64', "encode archive with BASE64") { |v| base64 = true }
 opt.on('-D', '--provide-data-handle', "provide DATA pseudo filehandle") { simulate_data = true }
 
@@ -144,17 +146,32 @@ ENV.delete('ZIPOPT')
 ENV.delete('ZIP')
 
 zipdat = ''
-Tempfile.create(["zipapp", ".zip"]) {|fp|
-  tmpfname = fp.path
-  fp.write("PK\5\6\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0")
-  # minimal empty ZIP structure to make zip happy
-  fp.flush
-  system("zip", "-X", "-#{compression}", tmpfname, "--", *files) or die "zip failed"
 
-  Dir.chdir cwd;
+if textarchive then
+  zipdat = ''
+  files.each { |f|
+    open(f, "rb") { |fp|
+      dat = fp.read(nil)
+      while(true)
+        sep = "----TEXTARCHIVE-%08d----------------" % rand(100000000)
+	break if ! dat.include?(sep) && ! f.include?(sep)
+      end
+      zipdat << "TXD\n#{sep}\n#{f}\n#{sep}\n#{dat}\n#{sep}\n";
+    }
+  }
+  zipdat << "TXE\n"
+else
+  Tempfile.create(["zipapp", ".zip"]) {|fp|
+    tmpfname = fp.path
+    fp.write("PK\5\6\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0")
+    # minimal empty ZIP structure to make zip happy
+    fp.flush
+    system("zip", "-X", "-#{compression}", tmpfname, "--", *files) or die "zip failed"
 
-  zipdat = open(tmpfname, "rb") { |f| f.read(nil) }
-}
+    zipdat = open(tmpfname, "rb") { |f| f.read(nil) }
+  }
+end
+Dir.chdir cwd;
 
 quote = nil
 if (base64)
@@ -167,6 +184,7 @@ end
 
 config = {main: main, dequote: quote, simulate_data: simulate_data}
 features = ["MAIN"] +
+           (textarchive ? ["TEXTARCHIVE"] : ["ZIPARCHIVE"]) +
            (quote ? ["QUOTE"] : []) +
            (compression != 0 ? ["COMPRESSION"] : []) +
            (simulate_data ? ["SIMULATEDATA"] : [])
@@ -227,11 +245,12 @@ module ZipRubyApp
   def self.get_main; get_module(self::CONFIG[:main]); end
 
   @data = DATA
+  @data.set_encoding('ASCII-8bit')
 
   def self.read_data(n)
     return '' if n == 0
     d = @data.read(n)
-    return d if d.length == n
+    return d if d && d.length == n
     raise LoadError.new("zip archive truncated: #{n}, #{d.inspect}")
   end
 
@@ -252,7 +271,9 @@ module ZipRubyApp
 
   while true do
     hdr = read_data(4);
-    if (hdr == "PK\3\4")
+    case hdr
+#BEGIN ZIPARCHIVE
+    when "PK\3\4"
       # per_file zip header
       (_, flags, comp, _, _, crc, csize, size, fnamelen, extlen) =
         read_data(26).unpack("vvvvvVVVvv")
@@ -278,15 +299,28 @@ module ZipRubyApp
       end
 
       SOURCES[fname] = ZippedModule.new(fname, dat);
-    elsif (hdr == "PK\1\2")
+    when "PK\1\2"
       break # central directory found. exiting.
-    elsif (hdr == "PK\5\6")
+    when "PK\5\6"
       fatal "malformed or empty archive";
+#END ZIPARCHIVE
+#BEGIN TEXTARCHIVE
+    when "TXD\n"
+      bar = @data.gets("\n") or fatal "truncated data"
+      d = "\n" + bar
+      fname = @data.gets(d) or fatal "truncated data"
+      fname.chomp!(d)
+      dat = @data.gets(d) or fatal "truncated data"
+      dat.chomp!(d)
+      SOURCES[fname] = ZippedModule.new(fname, dat);
+    when "TXE\n"
+      break
+#END TEXTARCHIVE
     else
       fatal "malformed data";
     end
   end
-  DATA.close
+  @data.close
 #BEGIN SIMULATEDATA
 
   if self::CONFIG[:simulate_data]
@@ -334,7 +368,7 @@ ZipRubyApp.get_main.load(true)
 __END__
 EOS
 
-  script.gsub!(%r/^#BEGIN\ ([A-Z]+)\n(.*?)^#END\ \1\n/ms) { features.include?($1) ? $2 : "" }
+  while script.gsub!(%r/^#BEGIN\ ([A-Z]+)\n(.*?)^#END\ \1\n/ms) { features.include?($1) ? $2 : "" }; end
   script.gsub!(%r/@@([A-Z]+)@@/) { replace[$1] }
   return script
 end
@@ -355,8 +389,7 @@ open(out, "wb", mode) { |of|
   of.write zipdat;
 }
 
-if (quote)
-  exit(0) # do nothing
-else
-  exec("zip", "-Aq", out); # fix offset values in the archive
+unless (quote || textarchive)
+  system("zip", "-Aq", out); # fix offset values in the archive
 end
+exit(0) # do nothing
