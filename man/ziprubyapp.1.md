@@ -119,6 +119,18 @@ statements to load the contained modules, without modifying the
   input is remembered when the script is generated.  If you replace
   the main module by zip archivers, the data will be broken.
 
+## APIS
+
+There are currently no APIs visible to user scripts except import
+hooks.  Module `ZipRubyApp` is provided in the zipped script, so if
+you need to change some behavior upon packaging, something like
+
+    unless defined? ZipRubyApp
+      $:.unshift(__dir__)
+    end
+
+can be used.
+
 ## LIMITATIONS
 
 * Only pure Ruby scripts or modules can be loaded from zip

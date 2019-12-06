@@ -57,6 +57,7 @@
     <a href="#SYNOPSIS">SYNOPSIS</a>
     <a href="#DESCRIPTION">DESCRIPTION</a>
     <a href="#OPTIONS">OPTIONS</a>
+    <a href="#APIS">APIS</a>
     <a href="#LIMITATIONS">LIMITATIONS</a>
     <a href="#IMPLEMENTATION">IMPLEMENTATION</a>
     <a href="#DEPENDENCIES">DEPENDENCIES</a>
@@ -202,6 +203,19 @@ the main module by zip archivers, the data will be broken.</p></li>
 </ul>
 
 
+<h2 id="APIS">APIS</h2>
+
+<p>There are currently no APIs visible to user scripts except import
+hooks.  Module <code>ZipRubyApp</code> is provided in the zipped script, so if
+you need to change some behavior upon packaging, something like</p>
+
+<pre><code>unless defined? ZipRubyApp
+  $:.unshift(__dir__)
+end
+</code></pre>
+
+<p>can be used.</p>
+
 <h2 id="LIMITATIONS">LIMITATIONS</h2>
 
 <ul>
@@ -251,7 +265,7 @@ It must be available in the command search path.</p>
 
 <h2 id="AUTHOR-COPYRIGHT">AUTHOR/COPYRIGHT</h2>
 
-<p>Copyright 2019 Yutaka OIWA <a href="&#109;&#97;&#x69;&#108;&#116;&#x6f;&#x3a;&#x79;&#117;&#116;&#x61;&#x6b;&#x61;&#x40;&#111;&#x69;&#119;&#x61;&#46;&#x6a;&#112;" data-bare-link="true">&#121;&#117;&#x74;&#x61;&#x6b;&#x61;&#x40;&#111;&#x69;&#119;&#97;&#x2e;&#x6a;&#112;</a>.</p>
+<p>Copyright 2019 Yutaka OIWA <a href="&#109;&#97;&#x69;&#x6c;&#x74;&#111;&#58;&#x79;&#x75;&#x74;&#97;&#x6b;&#97;&#64;&#111;&#x69;&#x77;&#x61;&#x2e;&#x6a;&#112;" data-bare-link="true">&#x79;&#x75;&#116;&#97;&#107;&#x61;&#x40;&#x6f;&#105;&#119;&#x61;&#x2e;&#106;&#112;</a>.</p>
 
 <p>Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

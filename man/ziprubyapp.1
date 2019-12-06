@@ -128,6 +128,24 @@ It is implemented with StringIO in Ruby\. For both performance and simplicity, t
 .
 .IP "" 0
 .
+.SH "APIS"
+There are currently no APIs visible to user scripts except import hooks\. Module \fBZipRubyApp\fR is provided in the zipped script, so if you need to change some behavior upon packaging, something like
+.
+.IP "" 4
+.
+.nf
+
+unless defined? ZipRubyApp
+  $:\.unshift(__dir__)
+end
+.
+.fi
+.
+.IP "" 0
+.
+.P
+can be used\.
+.
 .SH "LIMITATIONS"
 .
 .IP "\(bu" 4
