@@ -353,13 +353,13 @@ module Kernel
       ziprubyapp_orig_require path
     end
   end
-  alias ziprubyapp_orig_require_relative require_relative
   def require_relative(path)
     loc = caller_locations(1,1)[0].absolute_path
     if ZipRubyApp::FAKEPATH_REGEX =~ loc
       require File.expand_path(path, File.dirname(loc).untaint)
     else
-      ziprubyapp_orig_require_relative path
+      require File.expand_path(path, File.dirname(loc))
+      # chain-calling require_relative will use wrong base path
     end
   end
 end
