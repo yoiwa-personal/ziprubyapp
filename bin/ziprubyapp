@@ -224,6 +224,7 @@ module ZipRubyApp
         end
       end
       begin
+        SCRIPT_LINES__[fakepath] = @code.lines if Object.constants.include?(:SCRIPT_LINES__)
         r = eval(@code, TOPLEVEL_BINDING, fakepath, 1)
         unless justload
           $LOADED_FEATURES << fakepath unless justload
