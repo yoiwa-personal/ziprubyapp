@@ -18,7 +18,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 
 require 'optparse'
 require 'tempfile'
@@ -197,6 +197,7 @@ module ZipRubyApp
   SOURCES = Hash.new
   FAKEPATH_ROOT = File.expand_path(__FILE__)
   FAKEPATH_REGEX = /\A#{Regexp.quote FAKEPATH_ROOT}\/(.+)/
+  FILTER_REGEX = /\A#{Regexp.quote __FILE__}:\d+:in `(require|require_relative|call|eval|load|<main>|block \(2 levels\) in <module:Kernel>)'\z/
   CONFIG = @@CONFIG@@
 
   class ZippedModule
@@ -242,6 +243,13 @@ module ZipRubyApp
   end
 
   def self.fatal str; $stderr.print("Error processing zipped script #{$0.inspect}: #{str}\n"); exit 255; end
+
+  def self.filter_err(pos = 0)
+    while $@.length > 0 && $@.length > pos
+      break unless ZipRubyApp::FILTER_REGEX =~ $@[pos]
+      $@.delete_at(pos)
+    end
+  end
 
   def self.get_main; get_module(self::CONFIG[:main]); end
 
@@ -336,24 +344,25 @@ module ZipRubyApp
 end
 
 module Kernel
-  alias ziprubyapp_orig_require require
-  def require(path)
-    path = path.to_path if path.respond_to?(:to_path) # see rubygems.require
-    raise SecurityError if ("" + path).tainted? # path.tainted? can be overriden
+  define_method :require, Proc.new { |_require|
+    Proc.new { |path|
+      path = path.to_path if path.respond_to?(:to_path) # see rubygems.require
+      raise SecurityError if ("" + path).tainted? # path.tainted? can be overriden
 
-    mypath = path
-    mypath += ".rb" unless /.rb\z/ =~ mypath
+      mypath = path
+      mypath += ".rb" unless /.rb\z/ =~ mypath
 
-    mod = ZipRubyApp.get_module(mypath)
+      mod = ZipRubyApp.get_module(mypath)
 
-    if mod
-      return false if $LOADED_FEATURES.include?(mod.spec)
-      mod.load
-      return true
-    else
-      ziprubyapp_orig_require path
-    end
-  end
+      if mod
+        return false if $LOADED_FEATURES.include?(mod.spec)
+        mod.load
+        return true
+      else
+        begin _require.call(path) ensure ZipRubyApp.filter_err() end
+      end
+    }}.call(method(:require))
+
   def require_relative(path)
     loc = caller_locations(1,1)[0].absolute_path
     if ZipRubyApp::FAKEPATH_REGEX =~ loc
@@ -365,7 +374,7 @@ module Kernel
   end
 end
 
-ZipRubyApp.get_main.load(true)
+begin ZipRubyApp.get_main.load(true) ensure ZipRubyApp.filter_err(-1) end
 __END__
 EOS
 
