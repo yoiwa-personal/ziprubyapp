@@ -245,9 +245,14 @@ module ZipRubyApp
   def self.fatal str; $stderr.print("Error processing zipped script #{$0.inspect}: #{str}\n"); exit 255; end
 
   def self.filter_err(pos = 0)
-    while $@.length > 0 && $@.length > pos
-      break unless ZipRubyApp::FILTER_REGEX =~ $@[pos]
-      $@.delete_at(pos)
+    if $!
+#BEGIN COMMENT
+#      while $@.length > 0 && $@.length > pos
+#        break unless ZipRubyApp::FILTER_REGEX =~ $@[pos]
+#        $@.delete_at(pos)
+#      end
+#END COMMENT
+      $@ = $@.reject {|x| ZipRubyApp::FILTER_REGEX =~ x }
     end
   end
 
@@ -347,7 +352,10 @@ module Kernel
   define_method :require, Proc.new { |_require|
     Proc.new { |path|
       path = path.to_path if path.respond_to?(:to_path) # see rubygems.require
-      raise SecurityError if ("" + path).tainted? # path.tainted? can be overriden
+      raise SecurityError.new("Insecure operation - require") if $SAFE > 0 && ("" + path).tainted?
+#BEGIN COMMENT
+                                                                              # path.tainted? can be overriden
+#END COMMENT
 
       mypath = path
       mypath += ".rb" unless /.rb\z/ =~ mypath
@@ -361,7 +369,10 @@ module Kernel
       else
         begin _require.call(path) ensure ZipRubyApp.filter_err() end
       end
-    }}.call(method(:require))
+    }}.call(Kernel.instance_method(:require).bind(Kernel))
+#BEGIN COMMENT
+ # Kernel.method(:require) will return non-overridden non-gem method
+#END COMMENT
 
   def require_relative(path)
     loc = caller_locations(1,1)[0].absolute_path
@@ -394,7 +405,7 @@ print "writing to #{out}\n"
 
 open(out, "wb", mode) { |of|
   of.write shebang;
-  of.write "\n";
+  of.write "\n" if shebang != '';
   of.write script;
   of.write zipdat;
 }
