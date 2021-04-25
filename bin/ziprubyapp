@@ -207,7 +207,7 @@ module ZipRubyApp
 
     def initialize(spec, code)
       @spec = spec.untaint
-      @encoding = %r/(?:#![^\n]*\r?\n)?#.*coding\s*[=:]\s*([\w\d\-\_]+)/ =~ code ? $1 : 'ASCII-8bit'
+      @encoding = %r/\A(?:#![^\n]*\r?\n)?#.*coding\s*[=:]\s*([\w\-]+)/i =~ code ? $1 : 'UTF-8'
       @code = code.untaint.force_encoding(@encoding)
       @lock = Thread::Mutex.new
       @loaded = false
@@ -245,15 +245,10 @@ module ZipRubyApp
   def self.fatal str; $stderr.print("Error processing zipped script #{$0.inspect}: #{str}\n"); exit 255; end
 
   def self.filter_err(pos = 0)
-    if $!
-#BEGIN COMMENT
-#      while $@.length > 0 && $@.length > pos
-#        break unless ZipRubyApp::FILTER_REGEX =~ $@[pos]
-#        $@.delete_at(pos)
-#      end
-#END COMMENT
-      $@ = $@.reject {|x| ZipRubyApp::FILTER_REGEX =~ x }
-    end
+    return if $-d or ! $!
+    n = 0
+    n += 1          while $@.length > n && ZipRubyApp::FILTER_REGEX !~ $@[n]
+    $@.delete_at(n) while $@.length > n && ZipRubyApp::FILTER_REGEX =~ $@[n]
   end
 
   def self.get_main; get_module(self::CONFIG[:main]); end
@@ -289,7 +284,7 @@ module ZipRubyApp
 #BEGIN ZIPARCHIVE
     when "PK\3\4"
       # per_file zip header
-      (_, flags, comp, _, _, crc, csize, size, fnamelen, extlen) =
+      (_, flags, comp, _, _, _crc, csize, size, fnamelen, extlen) =
         read_data(26).unpack("vvvvvVVVvv")
       fatal "unsupported: deferred length" if (flags & 0x8 != 0)
       fname = read_data(fnamelen);
@@ -306,7 +301,7 @@ module ZipRubyApp
         zstream.close
         dat = buf
         fatal "malformed data: bad length" unless dat.length == size;
-        fatal "Inflate failed: crc mismatch" unless Zlib::crc32(buf) == crc;
+        fatal "Inflate failed: crc mismatch" unless Zlib::crc32(buf) == _crc;
 #END COMPRESSION
       else
         fatal "unknown compression";
