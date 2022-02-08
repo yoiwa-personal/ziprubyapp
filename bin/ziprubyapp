@@ -244,7 +244,7 @@ module ZipRubyApp
 
   def self.fatal str; $stderr.print("Error processing zipped script #{$0.inspect}: #{str}\n"); exit 255; end
 
-  def self.filter_err(pos = 0)
+  def self.filter_err()
     return if $-d or ! $!
     n = 0
     n += 1          while $@.length > n && ZipRubyApp::FILTER_REGEX !~ $@[n]
@@ -346,17 +346,12 @@ end
 module Kernel
   define_method :require, Proc.new { |_require|
     Proc.new { |path|
-      path = path.to_path if path.respond_to?(:to_path) # see rubygems.require
-      raise SecurityError.new("Insecure operation - require") if $SAFE > 0 && ("" + path).tainted?
-#BEGIN COMMENT
-                                                                              # path.tainted? can be overriden
-#END COMMENT
-
-      mypath = path
+      mypath = path.respond_to?(:to_path) ? path.to_path : path # see rubygems.require
+      mypath = "" + mypath                                      # rip off all dirty hacks if any
+      raise SecurityError.new("Insecure operation - require") if $SAFE > 0 && mypath.tainted?
       mypath += ".rb" unless /.rb\z/ =~ mypath
 
       mod = ZipRubyApp.get_module(mypath)
-
       if mod
         return false if $LOADED_FEATURES.include?(mod.spec)
         mod.load
@@ -380,7 +375,7 @@ module Kernel
   end
 end
 
-begin ZipRubyApp.get_main.load(true) ensure ZipRubyApp.filter_err(-1) end
+begin ZipRubyApp.get_main.load(true) ensure ZipRubyApp.filter_err() end
 __END__
 EOS
 
