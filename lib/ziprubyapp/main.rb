@@ -1,0 +1,406 @@
+#!/usr/bin/env ruby
+# -*- ruby -*-
+# ziprubyapp - Make an executable ruby script bundle using zip archive
+#
+# https://github.com/yoiwa-personal/ziprubyapp/
+#
+# Copyright 2019 Yutaka OIWA <yutaka@oiwa.jp>.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+VERSION = "1.1.1"
+
+require 'optparse'
+require 'tempfile'
+require 'find'
+
+def die str; $stderr.print("Error: #{str}\n"); exit 1; end
+
+compression = 0
+out = nil
+mainopt = nil
+base64 = false
+textarchive = false
+simulate_data = false
+
+opt = OptionParser.new
+
+opt.banner += " {directory | files ...}"
+
+opt.on('-C', '--compress[=VAL]', Integer, "compression level") { |v| compression = (v == nil) ? 9 : v }
+opt.on('-o FILE', '--output=FILE', "output file") { |v| out = v }
+opt.on('-m MOD', '--main=MOD', "name of main module to be loaded") { |v| mainopt = v }
+opt.on('-T', '--text-archive', "use text-based archive format") { |v| textarchive = true }
+opt.on('-B', '--base64', "encode archive with BASE64") { |v| base64 = true }
+opt.on('-D', '--provide-data-handle', "provide DATA pseudo filehandle") { simulate_data = true }
+
+opt.parse!(ARGV)
+
+if (ARGV.length == 0)
+  puts opt.help
+  exit(2)
+end
+
+cwd = Dir::pwd
+
+possible_out = nil
+main = nil
+dir = nil
+
+if (ARGV.length == 1 and File.directory? ARGV[0])
+  dir = ARGV[0]
+  possible_out = ARGV[0]
+end
+
+if (mainopt != nil)
+  possible_out = main = mainopt
+elsif (dir == nil)
+  if ARGV.include?('__main__.rb')
+    main = '__main__.rb'
+  else
+    main = possible_out = ARGV[0]
+    print "using #{main} as main script\n"
+  end
+end
+
+if (out == nil)
+  if (possible_out == nil or possible_out == '.')
+    die("cannot guess name")
+  end
+  out = File.basename possible_out
+  out = out.sub(/(\.rb)?$/, '.rbz')
+  print "output is set to: #{out}\n"
+end
+
+die "bad --compress=#{compression}" unless 0 <= compression && compression <= 9
+
+files = []
+if (dir != nil)
+  Dir.chdir dir
+  zipdir = Dir.pwd
+
+  Find.find('.') {|f|
+    f.sub!(/^\.\//, '')
+    next if /^\./ =~ f
+    files << f if /\.rb$/ =~ f
+  }
+  if files.include?('__main__.rb')
+    main = '__main__.rb'
+  else
+    die "cannot guess main script"
+  end
+else
+  ARGV.each { |f|
+    f = f.sub(/^\.\//, '')
+    files << f if /\.rb$/ =~ f
+  }
+  main = main.sub(/^\.\//, '')
+end
+
+die "no main files guessed" unless main != nil
+
+if (!files.include?(main))
+  die "no main file #{main.inspect} will be contained in archive"
+end
+
+# consult main script for pod and she-bang
+
+shebang = ''
+
+open(main, "rb") { |mainf|
+  mainf.each_line { |line|
+    break unless /^#/ =~ line
+    shebang << line
+  }
+}
+
+mode = 0o666
+mode = 0o777 if (/\A#!/ =~ shebang);
+
+if simulate_data
+  require 'ripper'
+  open(main, "rb") { |mainf|
+    # depending on that ripper stops reading at __END__ token
+    lex = Ripper.lex(mainf)
+    if lex[-1] and lex[-1][1] == :on___end__
+      simulate_data = mainf.pos
+    else
+      simulate_data = false
+    end
+  }
+end
+
+# get zip data
+
+ENV.delete('ZIPOPT')
+ENV.delete('ZIP')
+
+zipdat = ''
+
+if textarchive then
+  zipdat = ''
+  files.each { |f|
+    open(f, "rb") { |fp|
+      dat = fp.read(nil)
+      while(true)
+        sep = "----TEXTARCHIVE-%08d----------------" % rand(100000000)
+	break if ! dat.include?(sep) && ! f.include?(sep)
+      end
+      zipdat << "TXD\n#{sep}\n#{f}\n#{sep}\n#{dat}\n#{sep}\n";
+    }
+  }
+  zipdat << "TXE\n"
+else
+  Tempfile.create(["zipapp", ".zip"]) {|fp|
+    tmpfname = fp.path
+    fp.write("PK\5\6\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0")
+    # minimal empty ZIP structure to make zip happy
+    fp.flush
+    system("zip", "-X", "-#{compression}", tmpfname, "--", *files) or die "zip failed"
+
+    zipdat = open(tmpfname, "rb") { |f| f.read(nil) }
+  }
+end
+Dir.chdir cwd;
+
+quote = nil
+if (base64)
+  require 'base64'
+  zipdat = Base64.encode64(zipdat)
+  quote = 'base64'
+end
+
+# prepare launching script
+
+config = {main: main, dequote: quote, simulate_data: simulate_data}
+features = ["MAIN"] +
+           (textarchive ? ["TEXTARCHIVE"] : ["ZIPARCHIVE"]) +
+           (quote ? ["QUOTE"] : []) +
+           (compression != 0 ? ["COMPRESSION"] : []) +
+           (simulate_data ? ["SIMULATEDATA"] : [])
+
+def script(features, replace)
+  script = <<'EOS'
+# This script is packaged by ziprubyapp
+
+module ZipRubyApp
+  SOURCES = Hash.new
+  FAKEPATH_ROOT = File.expand_path(__FILE__)
+  FAKEPATH_REGEX = /\A#{Regexp.quote FAKEPATH_ROOT}\/(.+)/
+  FILTER_REGEX = /\A#{Regexp.quote __FILE__}:\d+:in `(require|require_relative|call|eval|load|<main>|block \(2 levels\) in <module:Kernel>)'\z/
+  CONFIG = @@CONFIG@@
+
+  class ZippedModule
+    def self.search(spec)
+      return ZipRubyApp::SOURCES[spec]
+    end
+
+    def initialize(spec, code)
+      @spec = spec.untaint
+      @encoding = %r/\A(?:#![^\n]*\r?\n)?#.*coding\s*[=:]\s*([\w\-]+)/i =~ code ? $1 : 'UTF-8'
+      @code = code.untaint.force_encoding(@encoding)
+      @lock = Thread::Mutex.new
+      @loaded = false
+    end
+
+    def load(justload=false)
+      r = nil
+      fakepath = FAKEPATH_ROOT + "/" + @spec
+      unless justload
+        return false if @loaded
+        begin
+          @lock.lock
+        rescue ThreadError
+          raise LoadError.new("#{@spec}: recursive loading")
+        end
+      end
+      begin
+        SCRIPT_LINES__[fakepath] = @code.lines if Object.constants.include?(:SCRIPT_LINES__)
+        r = eval(@code, TOPLEVEL_BINDING, fakepath, 1)
+        unless justload
+          $LOADED_FEATURES << fakepath unless justload
+          @loaded = true
+        end
+      ensure
+        @lock.unlock unless justload
+      end
+      return justload ? r : true
+    end
+
+    def to_s; "#<#{self.class}: @spec=#{@spec.inspect}, @code=#{@code[0, 10].inspect}... (#{@code.length} bytes)>"; end
+    alias inspect to_s
+    attr_reader :code, :spec
+  end
+
+  def self.fatal str; $stderr.print("Error processing zipped script #{$0.inspect}: #{str}\n"); exit 255; end
+
+  def self.filter_err()
+    return if $-d or ! $!
+    n = 0
+    n += 1          while $@.length > n && ZipRubyApp::FILTER_REGEX !~ $@[n]
+    $@.delete_at(n) while $@.length > n && ZipRubyApp::FILTER_REGEX =~ $@[n]
+  end
+
+  def self.get_main; get_module(self::CONFIG[:main]); end
+
+  @data = DATA
+  @data.set_encoding('ASCII-8bit')
+
+  def self.read_data(n)
+    return '' if n == 0
+    d = @data.read(n)
+    return d if d && d.length == n
+    raise LoadError.new("zip archive truncated: #{n}, #{d.inspect}")
+  end
+
+  def self.get_module(spec)
+    return ZippedModule.search(FAKEPATH_REGEX =~ spec ? $1 : spec)
+  end
+
+#BEGIN QUOTE
+  case self::CONFIG[:dequote]
+  when 'base64'
+    require 'base64'
+    require 'stringio'
+    dat = Base64.decode64(@data.read(nil))
+    @data.close
+    @data = StringIO.new(dat, "rb")
+  end
+#END QUOTE
+
+  while true do
+    hdr = read_data(4);
+    case hdr
+#BEGIN ZIPARCHIVE
+    when "PK\3\4"
+      # per_file zip header
+      (_, flags, comp, _, _, _crc, csize, size, fnamelen, extlen) =
+        read_data(26).unpack("vvvvvVVVvv")
+      fatal "unsupported: deferred length" if (flags & 0x8 != 0)
+      fname = read_data(fnamelen);
+      read_data(extlen);
+      dat = read_data(csize);
+      if (comp == 0)
+        fatal "malformed data: bad length" unless csize == size;
+#BEGIN COMPRESSION
+      elsif (comp == 8)
+        require 'zlib'
+        zstream = Zlib::Inflate.new(-15)
+        buf = zstream.inflate(dat)
+        buf << zstream.finish
+        zstream.close
+        dat = buf
+        fatal "malformed data: bad length" unless dat.length == size;
+        fatal "Inflate failed: crc mismatch" unless Zlib::crc32(buf) == _crc;
+#END COMPRESSION
+      else
+        fatal "unknown compression";
+      end
+
+      SOURCES[fname] = ZippedModule.new(fname, dat);
+    when "PK\1\2"
+      break # central directory found. exiting.
+    when "PK\5\6"
+      fatal "malformed or empty archive";
+#END ZIPARCHIVE
+#BEGIN TEXTARCHIVE
+    when "TXD\n"
+      bar = @data.gets("\n") or fatal "truncated data"
+      d = "\n" + bar
+      fname = @data.gets(d) or fatal "truncated data"
+      fname.chomp!(d)
+      dat = @data.gets(d) or fatal "truncated data"
+      dat.chomp!(d)
+      SOURCES[fname] = ZippedModule.new(fname, dat);
+    when "TXE\n"
+      break
+#END TEXTARCHIVE
+    else
+      fatal "malformed data";
+    end
+  end
+  @data.close
+#BEGIN SIMULATEDATA
+
+  if self::CONFIG[:simulate_data]
+    require 'stringio'
+    pos = self::CONFIG[:simulate_data]
+    str = self.get_main().code
+    str = str.byteslice(pos, str.bytesize - pos)
+    Object.send(:remove_const, :DATA)
+    Object.send(:const_set, :DATA, StringIO.new(str))
+  end
+#END SIMULATEDATA
+end
+
+module Kernel
+  define_method :require, Proc.new { |_require|
+    Proc.new { |path|
+      mypath = path.respond_to?(:to_path) ? path.to_path : path # see rubygems.require
+      mypath = "" + mypath                                      # rip off all dirty hacks if any
+      raise SecurityError.new("Insecure operation - require") if $SAFE > 0 && mypath.tainted?
+      mypath += ".rb" unless /.rb\z/ =~ mypath
+
+      mod = ZipRubyApp.get_module(mypath)
+      if mod
+        return false if $LOADED_FEATURES.include?(mod.spec)
+        mod.load
+        return true
+      else
+        begin _require.call(path) ensure ZipRubyApp.filter_err() end
+      end
+    }}.call(Kernel.instance_method(:require).bind(Kernel))
+#BEGIN COMMENT
+ # Kernel.method(:require) will return non-overridden non-gem method
+#END COMMENT
+
+  def require_relative(path)
+    loc = caller_locations(1,1)[0].absolute_path
+    if ZipRubyApp::FAKEPATH_REGEX =~ loc
+      require File.expand_path(path, File.dirname(loc).untaint)
+    else
+      require File.expand_path(path, File.dirname(loc))
+      # chain-calling require_relative will use wrong base path
+    end
+  end
+end
+
+begin ZipRubyApp.get_main.load(true) ensure ZipRubyApp.filter_err() end
+__END__
+EOS
+
+  while script.gsub!(%r/^#BEGIN\ ([A-Z]+)\n(.*?)^#END\ \1\n/ms) { features.include?($1) ? $2 : "" }; end
+  script.gsub!(%r/@@([A-Z]+)@@/) { replace[$1] }
+  return script
+end
+
+script = script(
+  features,
+  {'CONFIG' => config.to_s,
+   'PKGNAME' => 'ZipRubyApp::__ARCHIVED__'})
+
+# emit output
+
+print "writing to #{out}\n"
+
+open(out, "wb", mode) { |of|
+  of.write shebang;
+  of.write "\n" if shebang != '';
+  of.write script;
+  of.write zipdat;
+}
+
+unless (quote || textarchive)
+  system("zip", "-Aq", out); # fix offset values in the archive
+end
+exit(0) # do nothing
