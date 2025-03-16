@@ -477,9 +477,12 @@ module ZipRubyApp
 #BEGIN ZIPARCHIVE
     when "PK\3\4"
       # per_file zip header
-      (_, flags, comp, _, _, _crc, csize, size, fnamelen, extlen) =
+      (_, flags, comp, _, _, crc, csize, size, fnamelen, extlen) =
         read_data(26).unpack("vvvvvVVVvv")
       fatal "unsupported: deferred length" if (flags & 0x8 != 0)
+      fatal "unsupported: 64bit length" if size == 0xffffffff
+      fatal "too big data (u:#{size})" if size > self::CONFIG[:sizelimit]
+      fatal "too big data (c:#{csize})" if csize > self::CONFIG[:sizelimit]
       fname = read_data(fnamelen);
       read_data(extlen);
       dat = read_data(csize);
@@ -494,7 +497,7 @@ module ZipRubyApp
         zstream.close
         dat = buf
         fatal "malformed data: bad length" unless dat.length == size;
-        fatal "Inflate failed: crc mismatch" unless Zlib::crc32(buf) == _crc;
+        fatal "Inflate failed: crc mismatch" unless Zlib::crc32(buf) == crc;
 #END COMPRESSION
       else
         fatal "unknown compression";
@@ -514,7 +517,7 @@ module ZipRubyApp
       fname.chomp!(d)
       dat = @data.gets(d) or fatal "truncated data"
       dat.chomp!(d)
-      SOURCES[fname] = ZippedModule.new(fname, dat);
+      SOURCES[fname] = ZippedModule.new(fname, dat)
     when "TXE\n"
       break
 #END TEXTARCHIVE
