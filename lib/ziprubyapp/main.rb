@@ -4,7 +4,7 @@
 #
 # https://github.com/yoiwa-personal/ziprubyapp/
 #
-# Copyright 2019 Yutaka OIWA <yutaka@oiwa.jp>.
+# Copyright 2019-2025 Yutaka OIWA <yutaka@oiwa.jp>.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,180 +17,373 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# As a special exception to the Apache License, outputs of this
+# software, which contain a code snippet copied from this software, may
+# be used and distributed under terms of your choice, so long as the
+# sole purpose of these works is not redistributing the code snippet,
+# this software, or modified works of those.  The "AS-IS BASIS" clause
+# above still applies in these cases.
 
-VERSION = "1.1.1"
+VERSION = "1.99.2"
 
 require 'optparse'
-require 'tempfile'
 require 'find'
+require 'stringio'
+require_relative 'zip_tiny.rb'
 
-def die str; $stderr.print("Error: #{str}\n"); exit 1; end
+module ZipRubyApp
+  @@debug = false
 
-compression = 0
-out = nil
-mainopt = nil
-base64 = false
-textarchive = false
-simulate_data = false
+  module_function
+  def die str; $stderr.print("Error: #{str}\n"); exit 1; end
 
-opt = OptionParser.new
+  def canonicalize_filename(fname)
+    fname = fname.gsub(%r(/+), "/")
 
-opt.banner += " {directory | files ...}"
-
-opt.on('-C', '--compress[=VAL]', Integer, "compression level") { |v| compression = (v == nil) ? 9 : v }
-opt.on('-o FILE', '--output=FILE', "output file") { |v| out = v }
-opt.on('-m MOD', '--main=MOD', "name of main module to be loaded") { |v| mainopt = v }
-opt.on('-T', '--text-archive', "use text-based archive format") { |v| textarchive = true }
-opt.on('-B', '--base64', "encode archive with BASE64") { |v| base64 = true }
-opt.on('-D', '--provide-data-handle', "provide DATA pseudo filehandle") { simulate_data = true }
-
-opt.parse!(ARGV)
-
-if (ARGV.length == 0)
-  puts opt.help
-  exit(2)
-end
-
-cwd = Dir::pwd
-
-possible_out = nil
-main = nil
-dir = nil
-
-if (ARGV.length == 1 and File.directory? ARGV[0])
-  dir = ARGV[0]
-  possible_out = ARGV[0]
-end
-
-if (mainopt != nil)
-  possible_out = main = mainopt
-elsif (dir == nil)
-  if ARGV.include?('__main__.rb')
-    main = '__main__.rb'
-  else
-    main = possible_out = ARGV[0]
-    print "using #{main} as main script\n"
-  end
-end
-
-if (out == nil)
-  if (possible_out == nil or possible_out == '.')
-    die("cannot guess name")
-  end
-  out = File.basename possible_out
-  out = out.sub(/(\.rb)?$/, '.rbz')
-  print "output is set to: #{out}\n"
-end
-
-die "bad --compress=#{compression}" unless 0 <= compression && compression <= 9
-
-files = []
-if (dir != nil)
-  Dir.chdir dir
-  zipdir = Dir.pwd
-
-  Find.find('.') {|f|
-    f.sub!(/^\.\//, '')
-    next if /^\./ =~ f
-    files << f if /\.rb$/ =~ f
-  }
-  if files.include?('__main__.rb')
-    main = '__main__.rb'
-  else
-    die "cannot guess main script"
-  end
-else
-  ARGV.each { |f|
-    f = f.sub(/^\.\//, '')
-    files << f if /\.rb$/ =~ f
-  }
-  main = main.sub(/^\.\//, '')
-end
-
-die "no main files guessed" unless main != nil
-
-if (!files.include?(main))
-  die "no main file #{main.inspect} will be contained in archive"
-end
-
-# consult main script for pod and she-bang
-
-shebang = ''
-
-open(main, "rb") { |mainf|
-  mainf.each_line { |line|
-    break unless /^#/ =~ line
-    shebang << line
-  }
-}
-
-mode = 0o666
-mode = 0o777 if (/\A#!/ =~ shebang);
-
-if simulate_data
-  require 'ripper'
-  open(main, "rb") { |mainf|
-    # depending on that ripper stops reading at __END__ token
-    lex = Ripper.lex(mainf)
-    if lex[-1] and lex[-1][1] == :on___end__
-      simulate_data = mainf.pos
-    else
-      simulate_data = false
+    fname = fname.split('/')
+    pos = 0
+    
+    while pos < fname.length do
+      pos = 0 if pos <= -1
+      if fname[pos] == '.'
+        fname.slice!(pos)
+        redo
+      elsif (pos >= 1 &&
+             fname[pos] == '..' &&
+             fname[pos - 1] != '' && # not parent-of-root
+             fname[pos - 1] != '..') # parent of parent
+        fname.slice!(pos)
+        fname.slice!(pos - 1)
+        pos -= 1
+        redo
+      end
+      pos += 1
     end
-  }
-end
 
-# get zip data
+    fname = fname.join('/')
+    
+    fname = fname.sub(%r@^(\./)+@, "")
+    while (fname.sub!(%r@/./@, "/")); end
+    while (fname.sub!(%r@(/[^/]+/../)@, "/")); end
 
-ENV.delete('ZIPOPT')
-ENV.delete('ZIP')
+    ename = fname
+    if (@@trimlibname)
+      @@includedir.each { |l|
+        libdir = l + "/"
+        if ename.start_with?(libdir)
+          ename = ename.delete_prefix(libdir)
+          break
+        end
+      }
+    end
+    die "#{fname}: name is absolute\n" if ename =~ %r@^/@s;
+    die "#{fname}: name contains ..\n" if ename =~ %r@(^|/)../@s;
+    return [fname, ename]
+  end
 
-zipdat = ''
+  def add_file(fname)
+    # behavior of main mode:
+    #  1: add if *.pl, duplication is error
+    #  2: add if first
+    #  3: noop
 
-if textarchive then
-  zipdat = ''
-  files.each { |f|
-    open(f, "rb") { |fp|
-      dat = fp.read(nil)
+    fname, ename = canonicalize_filename(fname)
+
+    die "cannot find #{fname}" unless File.exist?(fname);
+    die "$fname is not a plain file" unless File.file?(fname);
+    if @@enames.include?(ename)
+      if fname != @@enames[ename]
+        die "duplicated files: #{fname} and #{@@enames[$ename]} will be same name in the archive"
+        # else: skip
+      end
+    else
+      if (@@maintype == 1)
+        # do it later
+      elsif @@maintype == 2
+        @@main = ename if @@main == nil
+        @@possible_out = ename if @@possible_out == nil
+      end
+      @@enames[ename] = fname;
+      @@files << [ename, fname]
+    end
+  end
+
+  def add_dir(fname)
+    Find.find(fname) {|f|
+      unless f =~ %r((^|\/)\.[^\/]*$)s
+        add_file(f) if f =~ /\.rb$/s
+      end
+    }
+  end
+
+  def process(argv)
+    compression = 0
+    out = nil
+    mainopt = nil
+    base64 = false
+    textarchive = false
+    simulate_data = false
+
+    @@includedir = []
+    @@sizelimit = 64 * 1048576
+
+    @@trimlibname = 1
+    searchincludedir = 1
+
+    opt = OptionParser.new
+
+    opt.banner += " {directory | files ...}"
+
+    opt.on('-C', '--compress[=VAL]', Integer, "compression level") { |v| compression = (v == nil) ? 9 : v }
+    opt.on('-o FILE', '--output=FILE', "output file") { |v| out = v }
+    opt.on('-m MOD', '--main=MOD', "name of main module to be loaded") { |v| mainopt = v }
+    opt.on('-T', '--text-archive', "use text-based archive format") { |v| textarchive = true }
+    opt.on('-B', '--base64', "encode archive with BASE64") { |v| base64 = true }
+    opt.on('-D', '--provide-data-handle', "provide DATA pseudo filehandle") { simulate_data = true }
+    opt.on('-I DIR', '--includedir=DIR', String, "library path to include") { |v| @@includedir << v }
+    opt.on('--[no-]search-includedir', "search files within -I directories (default true)") { |v| searchincludedir = v }
+    opt.on('--[no-]trim-includedir', "shorten file names for files in -I directories (default true)") { |v| @@trimlibname = v }
+    opt.on('--sizelimit=INT', Integer) { |v| @@sizelimit = (v || 64 * 1048576) }
+
+    opt.parse!(argv)
+
+    if (argv.length == 0)
+      puts opt.help
+      exit(2)
+    end
+
+    @@possible_out = nil
+    @@main = nil
+    dir = nil
+    @@maintype = 0
+
+    # determine main file and output name
+    # argument types:
+    #   type 1: a single directory dir, no main specified
+    #     -> include all files in dir, search for the main file (single .pl), output dir.plz
+    #   type 2: a set of files
+    #     -> specified files included, first argument must be .pl file, output first.plz
+    #   type 3: main file specified
+    #     -> specified files included, main file must be included, output main.plz
+
+    @@files = Array.new
+    @@enames = Hash.new
+
+    @@includedir.map! { |f|
+      f.sub(/\/+$/s, "")
+    }
+
+    if (mainopt != nil)
+      @@main = mainopt
+      @@possible_out = @@main
+      @@maintype = 3
+    end
+
+    if (argv.length == 1 and File.directory? argv[0])
+      dir = argv[0]
+      dir = dir.sub(/\/+$/, "")
+      @@possible_out = dir
+      @@includedir << dir
+      searchincludedir = false
+      @@trimlibname = true
+      @@maintype = 1 unless @@maintype == 3
+    else
+      @@maintype = 2 unless @@maintype == 3
+    end
+
+    if (mainopt != nil)
+      @@main = canonicalize_filename(@@main)[1]
+    end
+
+    argv.each { |f|
+      unless File.exist?(f)
+        if searchincludedir
+          includedir.each { |l|
+            ff = "#{l}/#{f}"
+            if File.exist?(ff)
+              f = ff
+              break
+            end
+          }
+        end
+      end
+      if File.file?(f)
+        add_file(f)
+      elsif File.directory?(f)
+        f = f.sub(/\/+$/, "")
+        add_dir(f)
+      else
+        die "file not found: #{f}" unless File.exist?(f)
+        die "file unknown type: #{f}"
+      end
+    }
+
+    if @@maintype == 1
+      ["__main__.rb", "main.rb"].each { |f|
+        if @@enames.include?(f)
+          @@main = f
+          break
+        end
+      }
+    end
+
+    die "no main files guessed" unless @@main != nil
+
+    if (out == nil)
+      if (@@possible_out == nil or @@possible_out == '.')
+        die("cannot guess name")
+      end
+      out = File.basename @@possible_out
+      out = out.sub(/(\.rb)?$/, '.rbz')
+      print "output is set to: #{out}\n"
+    end
+
+    if @@maintype != 3 || mainopt != @@main
+      print "using #{@@main} as main script\n"
+    end
+
+    if not @@enames.include?(@@main)
+      die "no main file #{@@main.inspect} will be contained in archive"
+    end
+
+    # elsif (dir == nil)
+    #   if argv.include?('__main__.rb')
+    #     @@main = '__main__.rb'
+    #   else
+    #     @@main = @@possible_out = argv[0]
+    #   end
+    # end
+
+    @@files.each {|f|
+      printf("%s <- %s\n", f[0], f[1])
+    }
+
+    die "bad --compress=#{compression}" unless 0 <= compression && compression <= 9
+
+    ZipTiny::__setopt(sizelimit: @@sizelimit, debug: @@debug)
+
+    @@files = ZipTiny::prepare_zip(@@files)
+
+    # consult main script for top comments and she-bang
+
+    mainent = @@files.select { |e| e[:fname] == @@main }
+    raise if mainent.length != 1
+    mainent = mainent[0]
+
+    shebang = ''
+
+    StringIO::open(mainent[:content], "rb") { |mainf|
+      mainf.each_line { |line|
+        break unless /^#/ =~ line
+        shebang << line
+      }
+    }
+
+    mode = 0o666
+    mode = 0o777 if (/\A#!/ =~ shebang);
+
+    if simulate_data
+      require 'ripper'
+
+      StringIO::open(mainent[:content], "rb") { |mainf|
+        # depending on that ripper stops reading at __END__ token
+        lex = Ripper.lex(mainf)
+        if lex[-1] and lex[-1][1] == :on___end__
+          simulate_data = mainf.pos
+        else
+          simulate_data = false
+        end
+      }
+    end
+
+    # ruby version do not require quotations
+
+    headerdata, zipdata = create_sfx(@@files, shebang, textarchive, compression, base64, simulate_data)
+
+    print "writing to #{out}\n";
+
+    open(out, "wb", mode) { |of|
+      of.write headerdata
+      of.write zipdata
+    }
+  end
+
+  def create_sfx(files, shebang, textarchive, compression, base64, simulate_data)
+    $stderr.print("create_sfx: b64 #{base64}, simdata #{simulate_data}\n") if @@debug;
+
+    quote = nil
+    if (base64)
+      require 'base64'
+      quote = 'base64'
+    end
+
+    # prepare launching script
+
+    config = {main: @@main, dequote: quote, simulate_data: simulate_data, sizelimit: @@sizelimit}
+    features = ["MAIN"] +
+               (textarchive ? ["TEXTARCHIVE"] : ["ZIPARCHIVE"]) +
+               (quote ? ["QUOTE"] : []) +
+               (compression != 0 ? ["COMPRESSION"] : []) +
+               (simulate_data ? ["SIMULATEDATA"] : [])
+
+    script = script(
+      features,
+      {'CONFIG' => config.to_s,
+       'PKGNAME' => 'ZipRubyApp::__ARCHIVED__'})
+
+    header = shebang + "\n" + script
+
+    zipdata = nil
+
+    if textarchive
+      zipdata = create_textarchive(files)
+    else
+      offset = base64 ? 0 : header.length
+      zipdata = ZipTiny::make_zip(files,
+                                  compress: compression,
+                                  header: "",
+                                  trailercomment: "",
+                                  offset: offset)
+    end
+    if (base64)
+      zipdata = Base64.encode64(zipdata)
+    end
+
+    return [header, zipdata]
+  end
+
+  def create_textarchive(files)
+    zipdat = StringIO.new(String.new, "rb+")
+
+    files.each { |e|
+      fname = e[:fname]
+      dat = e[:content]
+
       while(true)
         sep = "----TEXTARCHIVE-%08d----------------" % rand(100000000)
-	break if ! dat.include?(sep) && ! f.include?(sep)
+        break if ! dat.include?(sep) && ! fname.include?(sep)
       end
-      zipdat << "TXD\n#{sep}\n#{f}\n#{sep}\n#{dat}\n#{sep}\n";
+      zipdat.write("TXD\n")
+      zipdat.write(sep)
+      zipdat.write("\n")
+      zipdat.write(fname)
+      zipdat.write("\n")
+      zipdat.write(sep)
+      zipdat.write("\n")
+      zipdat.write(dat)
+      zipdat.write("\n")
+      zipdat.write(sep)
+      zipdat.write("\n")
     }
-  }
-  zipdat << "TXE\n"
-else
-  Tempfile.create(["zipapp", ".zip"]) {|fp|
-    tmpfname = fp.path
-    fp.write("PK\5\6\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0")
-    # minimal empty ZIP structure to make zip happy
-    fp.flush
-    system("zip", "-X", "-#{compression}", tmpfname, "--", *files) or die "zip failed"
+    zipdat.write("TXE\n")
 
-    zipdat = open(tmpfname, "rb") { |f| f.read(nil) }
-  }
-end
-Dir.chdir cwd;
+    zipdat.rewind
+    return zipdat.read
+  end
 
-quote = nil
-if (base64)
-  require 'base64'
-  zipdat = Base64.encode64(zipdat)
-  quote = 'base64'
-end
-
-# prepare launching script
-
-config = {main: main, dequote: quote, simulate_data: simulate_data}
-features = ["MAIN"] +
-           (textarchive ? ["TEXTARCHIVE"] : ["ZIPARCHIVE"]) +
-           (quote ? ["QUOTE"] : []) +
-           (compression != 0 ? ["COMPRESSION"] : []) +
-           (simulate_data ? ["SIMULATEDATA"] : [])
-
-def script(features, replace)
-  script = <<'EOS'
+  def script(features, replace)
+    script = <<'EOS'
 # This script is packaged by ziprubyapp
 
 module ZipRubyApp
@@ -348,7 +541,7 @@ module Kernel
     Proc.new { |path|
       mypath = path.respond_to?(:to_path) ? path.to_path : path # see rubygems.require
       mypath = "" + mypath                                      # rip off all dirty hacks if any
-      raise SecurityError.new("Insecure operation - require") if $SAFE > 0 && mypath.tainted?
+#      raise SecurityError.new("Insecure operation - require") if $SAFE > 0 && mypath.tainted?
       mypath += ".rb" unless /.rb\z/ =~ mypath
 
       mod = ZipRubyApp.get_module(mypath)
@@ -379,28 +572,10 @@ begin ZipRubyApp.get_main.load(true) ensure ZipRubyApp.filter_err() end
 __END__
 EOS
 
-  while script.gsub!(%r/^#BEGIN\ ([A-Z]+)\n(.*?)^#END\ \1\n/ms) { features.include?($1) ? $2 : "" }; end
-  script.gsub!(%r/@@([A-Z]+)@@/) { replace[$1] }
-  return script
+    while script.gsub!(%r/^#BEGIN\ ([A-Z]+)\n(.*?)^#END\ \1\n/ms) { features.include?($1) ? $2 : "" }; end
+    script.gsub!(%r/@@([A-Z]+)@@/) { replace[$1] }
+    return script
+  end
+
+  process(ARGV)
 end
-
-script = script(
-  features,
-  {'CONFIG' => config.to_s,
-   'PKGNAME' => 'ZipRubyApp::__ARCHIVED__'})
-
-# emit output
-
-print "writing to #{out}\n"
-
-open(out, "wb", mode) { |of|
-  of.write shebang;
-  of.write "\n" if shebang != '';
-  of.write script;
-  of.write zipdat;
-}
-
-unless (quote || textarchive)
-  system("zip", "-Aq", out); # fix offset values in the archive
-end
-exit(0) # do nothing
