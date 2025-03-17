@@ -392,6 +392,7 @@ module ZipRubyApp
   FAKEPATH_REGEX = /\A#{Regexp.quote FAKEPATH_ROOT}\/(.+)/
   FILTER_REGEX = /\A#{Regexp.quote __FILE__}:\d+:in `(require|require_relative|call|eval|load|<main>|block \(2 levels\) in <module:Kernel>)'\z/
   CONFIG = @@CONFIG@@
+  RUBYVER = (RUBY_VERSION.split(".").take(3).map.with_index {|x, i| x.to_i * 1000 ** (2 - i)}.inject(0, :+))
 
   class ZippedModule
     def self.search(spec)
@@ -544,7 +545,7 @@ module Kernel
     Proc.new { |path|
       mypath = path.respond_to?(:to_path) ? path.to_path : path # see rubygems.require
       mypath = "" + mypath                                      # rip off all dirty hacks if any
-#      raise SecurityError.new("Insecure operation - require") if $SAFE > 0 && mypath.tainted?
+      raise SecurityError.new("Insecure operation - require") if ZipRubyApp::RUBYVER < 2007000 && $SAFE > 0 && mypath.tainted?
       mypath += ".rb" unless /.rb\z/ =~ mypath
 
       mod = ZipRubyApp.get_module(mypath)
@@ -562,7 +563,7 @@ module Kernel
 
   def require_relative(path)
     loc = caller_locations(1,1)[0].absolute_path
-    if ZipRubyApp::FAKEPATH_REGEX =~ loc
+    if ZipRubyApp::RUBYVER < 3000000 && ZipRubyApp::FAKEPATH_REGEX =~ loc
       require File.expand_path(path, File.dirname(loc).untaint)
     else
       require File.expand_path(path, File.dirname(loc))
