@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta http-equiv='content-type' value='text/html;charset=utf8'>
-  <meta name='generator' value='Ronn/v0.7.3 (http://github.com/rtomayko/ronn/tree/0.7.3)'>
+  <meta http-equiv='content-type' content='text/html;charset=utf8'>
+  <meta name='generator' content='Ronn-NG/v0.9.1 (http://github.com/apjanke/ronn-ng/tree/0.9.1)'>
   <title>ziprubyapp(1) - Make an executable Ruby script bundle using zip archive</title>
   <style type='text/css' media='all'>
   /* style: man */
@@ -71,11 +71,12 @@
     <li class='tr'>ziprubyapp(1)</li>
   </ol>
 
-  <h2 id="NAME">NAME</h2>
+  
+
+<h2 id="NAME">NAME</h2>
 <p class="man-name">
   <code>ziprubyapp</code> - <span class="man-whatis">Make an executable Ruby script bundle using zip archive</span>
 </p>
-
 <h2 id="SYNOPSIS">SYNOPSIS</h2>
 
 <pre><code>ziprubyapp [options] {directory | file ...}
@@ -87,6 +88,9 @@ Options:
   -T, --text-archive               use text-based archive format
   -B, --base64                     encode archive with BASE64
   -D, --provide-data-handle        provide DATA pseudo filehandle
+  -I, --includedir=DIR             library path to include
+      --[no-]search-includedir     search files within -I directories
+      --[no-]trim-includedir       shorten file names for files in -I directories
   --help                           show help
 </code></pre>
 
@@ -108,100 +112,141 @@ statements to load the contained modules, without modifying the
 <h3 id="ARGUMENTS">ARGUMENTS</h3>
 
 <ul>
-<li><p>directory</p>
+  <li>
+    <p>directory</p>
 
-<p>If there are only one argument and it is a name of directory, All
+    <p>If there are only one argument and it is a name of directory, All
 <code>*.rb</code> files under that directory (recursively) are included.  The
-directory name itself is truncated.</p></li>
-<li><p>files</p>
+directory name itself is truncated.</p>
+  </li>
+  <li>
+    <p>files</p>
 
-<p>Otherwise, all files specified in the argument are included.</p></li>
+    <p>Otherwise, all files specified in the argument are included.</p>
+  </li>
 </ul>
-
 
 <h3 id="INPUT-OUTPUT-OPTIONS">INPUT/OUTPUT OPTIONS</h3>
 
 <ul>
-<li><p>--main, -m</p>
+  <li>
+    <p>--main, -m</p>
 
-<p>Specify the main module which is automatically loaded.  Also, a
+    <p>Specify the main module which is automatically loaded.  Also, a
 "she-bang" line and continuous comment lines are copied from the main
 module to the output.</p>
 
-<p>If a directory is specified in the argument, and there is a <code>__main__.rb</code>
+    <p>If a directory is specified in the argument, and there is a <code>__main__.rb</code>
 file on top of the directory, that file will be used.  Otherwise, the
-main module must be explicitly specified.</p></li>
-<li><p>--output, -o</p>
+main module must be explicitly specified.</p>
+  </li>
+  <li>
+    <p>--output, -o</p>
 
-<p>Specify the name of the output file.</p>
+    <p>Specify the name of the output file.</p>
 
-<p>If omitted, either the name of the source directory or the base name
+    <p>If omitted, either the name of the source directory or the base name
 of the main module is taken, with a postfix '<code>.rbz</code>' is appended.</p>
 
-<p>It is always safer to specify the output file.</p></li>
-</ul>
+    <p>It is always safer to specify the output file.</p>
+  </li>
+  <li>
+    <p>--includedir, -I</p>
 
+    <p>Specify the locations to search input files, in addition to the current
+directory.
+If this option is specified multiple times, the files will be searched
+in order of the specifications.</p>
+
+    <p>This option will have two kinds of separate effect; if '<code>-Ilib File.pm</code>
+is speficied in the command line, as an example:</p>
+
+    <ul>
+      <li>
+        <p>the command will include '<code>lib/File.pm</code>' to the archive, if
+'<code>File.pm</code>' does not exist.  This behavior can be disabled by
+specifing '<code>--no-search-includedir</code>'.</p>
+      </li>
+      <li>
+        <p>the file '<code>lib/File.pm</code>' will be included to the archive as
+'<code>File.pm</code>', triming the library part of the name. This happens
+either when the file is speficied explicitly or through C<var>-I</var>
+option.  This behavior can be disabled by specifing
+'<code>--no-trim-includedir</code>'.</p>
+
+        <p>If two or more files will share the same name after this triming,
+it will be an error and rejected.</p>
+      </li>
+    </ul>
+  </li>
+</ul>
 
 <h3 id="ARCHIVE-OPTIONS">ARCHIVE OPTIONS</h3>
 
 <ul>
-<li><p>--compress, -C</p>
+  <li>
+    <p>--compress, -C</p>
 
-<p>Specify the compression level for the Deflate algorithm.</p>
+    <p>Specify the compression level for the Deflate algorithm.</p>
 
-<p>If <code>-C</code> is specified without a digit, the highest level 9 is set.</p>
+    <p>If <code>-C</code> is specified without a digit, the highest level 9 is set.</p>
 
-<p>If not specified at all, the files are not compressed.
+    <p>If not specified at all, the files are not compressed.
 It makes the content of the script almost transparently visible.
 Also, the script will not load zlib and other libraries run-time.</p>
 
-<p>Outputs generated without <code>-C</code> options will not contain decompression
+    <p>Outputs generated without <code>-C</code> options will not contain decompression
 functionality, that means you need to add <code>-0</code> or similar options
-when you modify the contents with zip archivers.</p></li>
-<li><p>--base64, -B</p>
+when you modify the contents with zip archivers.</p>
+  </li>
+  <li>
+    <p>--base64, -B</p>
 
-<p>It will encode the embedded ZIP archive with Base64 encoding.  It
+    <p>It will encode the embedded ZIP archive with Base64 encoding.  It
 makes the script about 33% larger and also loses zip-transparent
 behavior as an sfx file, in trade for making the output script
-ASCII-clean.</p></li>
-<li><p>--text-archive, -T</p>
+ASCII-clean.</p>
+  </li>
+  <li>
+    <p>--text-archive, -T</p>
 
-<p>It will use its own plaintext archive format for storing modules.
+    <p>It will use its own plaintext archive format for storing modules.
 The output will not be compatible with zip archivers.</p>
 
-<p>Output scripts generated with this option will be plaintext, if all
+    <p>Output scripts generated with this option will be plaintext, if all
 input modules are plaintext in ASCII or some specific
 ASCII-compatible encoding.  In addition to that, it is easier to
 modify its content by hand, because the format uses no byte-oriented
 structure.</p>
 
-<p>This format will be useful when (1) you need to edit module sources
+    <p>This format will be useful when (1) you need to edit module sources
 embedded in outputs by text editors, or (2) when the whole source
 code must be transparently visible for auditing or inspections (if
 even <code>-C0</code> is unsatisfactory).</p>
 
-<p>The option combination with <code>-B</code> is possible, but it is not very
-meaningful.</p></li>
+    <p>The option combination with <code>-B</code> is possible, but it is not very
+meaningful.</p>
+  </li>
 </ul>
-
 
 <h3 id="CONTENT-HANDLING-OPTIONS">CONTENT HANDLING OPTIONS</h3>
 
 <ul>
-<li><p>--provide-data-handle, -D</p>
+  <li>
+    <p>--provide-data-handle, -D</p>
 
-<p>Simulate the DATA file handle for the main module.
+    <p>Simulate the DATA file handle for the main module.
 If enabled, it will set <code>DATA</code> constant to a simulated pseudo
 file handle, providing the script data after <code>__END__</code> token.</p>
 
-<p>If the main module does not contain the token, it is ignored.</p>
+    <p>If the main module does not contain the token, it is ignored.</p>
 
-<p>It is implemented with StringIO in Ruby.  For both performance and
+    <p>It is implemented with StringIO in Ruby.  For both performance and
 simplicity, the relative position of the <code>__END__</code> token in the
 input is remembered when the script is generated.  If you replace
-the main module by zip archivers, the data will be broken.</p></li>
+the main module by zip archivers, the data will be broken.</p>
+  </li>
 </ul>
-
 
 <h2 id="APIS">APIS</h2>
 
@@ -219,24 +264,31 @@ end
 <h2 id="LIMITATIONS">LIMITATIONS</h2>
 
 <ul>
-<li><p>Only pure Ruby scripts or modules can be loaded from zip
-archive. Dynamic loading (<em>.so, </em>.dll) will not be available.</p></li>
-<li><p><code>__FILE__</code> tokens in the archived file will have virtual values
+  <li>
+    <p>Only pure Ruby scripts or modules can be loaded from zip
+archive. Dynamic loading (*.so, *.dll) will not be available.</p>
+  </li>
+  <li>
+    <p><code>__FILE__</code> tokens in the archived file will have virtual values
 of "<em>archivename</em>/<em>modulename</em>", which does not exist in the real
 file system.  This also holds for the "main script" to be referred
 to.  It means that the common technique for making a "dual-use"
 module/script "<code>if __FILE__ == $0</code>" will not work.  Instead, please
-provide a short entry script as a main script.</p></li>
-<li><p>For compactness (and minimal dependency only to core modules), an
+provide a short entry script as a main script.</p>
+  </li>
+  <li>
+    <p>For compactness (and minimal dependency only to core modules), an
 embedded parser for zip archives is extremely simple.  It can not
 parse archives with any advanced features or partially-broken
 archives.  If you modify the packed archive using usual zip
-archivers, be aware of that.</p></li>
-<li><p>All files are decoded into the memory at the beginning of the
+archivers, be aware of that.</p>
+  </li>
+  <li>
+    <p>All files are decoded into the memory at the beginning of the
 program execution.  It is not wise to include unneeded files into
-the archive.</p></li>
+the archive.</p>
+  </li>
 </ul>
-
 
 <h2 id="IMPLEMENTATION">IMPLEMENTATION</h2>
 
@@ -258,20 +310,23 @@ It must be available in the command search path.</p>
 <h2 id="REFERENCE">REFERENCE</h2>
 
 <ul>
-<li><p><a href="https://www.github.com/yoiwa-personal/ziprubyapp">Homepage</a></p></li>
-<li><p><a href="https://docs.python.org/en/3/library/zipapp.html">Python's "zipapp" implementation</a></p></li>
+  <li>
+    <p><a href="https://www.github.com/yoiwa-personal/ziprubyapp">Homepage</a></p>
+  </li>
+  <li>
+    <p><a href="https://docs.python.org/en/3/library/zipapp.html">Python's "zipapp" implementation</a></p>
+  </li>
 </ul>
-
 
 <h2 id="AUTHOR-COPYRIGHT">AUTHOR/COPYRIGHT</h2>
 
-<p>Copyright 2019 Yutaka OIWA <a href="&#109;&#97;&#x69;&#x6c;&#x74;&#111;&#58;&#x79;&#x75;&#x74;&#97;&#x6b;&#97;&#64;&#111;&#x69;&#x77;&#x61;&#x2e;&#x6a;&#112;" data-bare-link="true">&#x79;&#x75;&#116;&#97;&#107;&#x61;&#x40;&#x6f;&#105;&#119;&#x61;&#x2e;&#106;&#112;</a>.</p>
+<p>Copyright 2019 Yutaka OIWA <a href="mailto:yutaka@oiwa.jp" data-bare-link="true">yutaka@oiwa.jp</a>.</p>
 
 <p>Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at</p>
 
-<p>   http://www.apache.org/licenses/LICENSE-2.0</p>
+<p>http://www.apache.org/licenses/LICENSE-2.0</p>
 
 <p>Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -289,10 +344,9 @@ above still applies in these cases.</p>
 <p>(In short, you can freely use this software to package YOUR software
 and the Apache License will not apply for YOURS.)</p>
 
-
   <ol class='man-decor man-foot man foot'>
     <li class='tl'></li>
-    <li class='tc'>December 2019</li>
+    <li class='tc'>March 2025</li>
     <li class='tr'>ziprubyapp(1)</li>
   </ol>
 
