@@ -354,7 +354,7 @@ module ZipRubyApp
   end
 
   def create_textarchive(files)
-    zipdat = StringIO.new(String.new, "rb+")
+    zipdat = StringIO.new
 
     files.each { |e|
       fname = e[:fname]
@@ -378,8 +378,8 @@ module ZipRubyApp
     }
     zipdat.write("TXE\n")
 
-    zipdat.rewind
-    return zipdat.read
+    zipdat.close
+    return zipdat.string
   end
 
   def script(features, replace)

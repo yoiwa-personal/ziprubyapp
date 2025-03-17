@@ -110,8 +110,8 @@ module ZipTiny
 
   def make_zip(entries, compress: 9, header: "", trailercomment: "", offset: 0)
     pos = offset
-    out = StringIO.new(String.new, "rb+")
-    gheader_accumulate = StringIO.new(String.new, "rb+")
+    out = StringIO.new
+    gheader_accumulate = StringIO.new
     fcount = 0
 
     out.write(header)
@@ -169,8 +169,8 @@ module ZipTiny
       gheader_accumulate.write(gheader)
       fcount += 1
     }
-    gheader_accumulate.rewind
-    gheader_accumulate = gheader_accumulate.read
+    gheader_accumulate.close
+    gheader_accumulate = gheader_accumulate.string
 
     pos = out.pos + offset
     ecd = [ 0x06054b50,
@@ -184,8 +184,8 @@ module ZipTiny
     out.write(gheader_accumulate)
     out.write(ecd)
     out.write(trailercomment)
-    out.rewind
-    return out.read
+    out.close
+    return out.string
   end
 end
 
