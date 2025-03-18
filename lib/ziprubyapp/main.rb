@@ -84,7 +84,7 @@ module ZipRubyApp
 
   def add_file(fname)
     # behavior of main mode:
-    #  1: add if *.pl, duplication is error
+    #  1: no op; do later
     #  2: add if first
     #  3: noop
 
@@ -247,14 +247,6 @@ module ZipRubyApp
       die "no main file #{@@main.inspect} will be contained in archive"
     end
 
-    # elsif (dir == nil)
-    #   if argv.include?('__main__.rb')
-    #     @@main = '__main__.rb'
-    #   else
-    #     @@main = @@possible_out = argv[0]
-    #   end
-    # end
-
     @@files.each {|f|
       printf("%s <- %s\n", f[0], f[1])
     }
@@ -267,6 +259,7 @@ module ZipRubyApp
 
     # consult main script for top comments and she-bang
 
+    # uses data structure internal to ZipTiny
     mainent = @@files.select { |e| e[:fname] == @@main }
     raise if mainent.length != 1
     mainent = mainent[0]
@@ -297,7 +290,7 @@ module ZipRubyApp
       }
     end
 
-    # ruby version do not require quotations
+    # no quotation support for ruby (not needed)
 
     headerdata, zipdata = create_sfx(@@files, shebang, textarchive, compression, base64, simulate_data)
 
@@ -357,6 +350,7 @@ module ZipRubyApp
     zipdat = StringIO.new
 
     files.each { |e|
+      # uses data structure internal to ZipTiny
       fname = e[:fname]
       dat = e[:content]
 

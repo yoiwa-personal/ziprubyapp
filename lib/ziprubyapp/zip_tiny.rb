@@ -12,7 +12,17 @@ module ZipTiny
     @@debug = debug
   end
 
-  def make_zipdata(entname, source=nil, modtime=nil)
+  # prepare a single entry to zip.
+  #
+  # * entname: a file name to be stored in zip file
+  # * source: a content to be stores, in one of following
+  #   * String "filename": content of the file "filename"
+  #   * omitted: content of the file "entname"
+  #   * IO handle: data read from the given handle
+  #   * Array ["string"]: the content of the string itself
+  #
+  # * modtime: modification time, if not available from file or handle
+  def prepare_zip_entry(entname, source=nil, modtime=nil)
     content = nil
 
     if source.is_a?(Array)
@@ -53,6 +63,7 @@ module ZipTiny
     }
   end
 
+  # convert Time structure to 32-bit MS-DOS timestamp
   def dosdate(unixtime)
     u = unixtime.getlocal
     return 0 if u.year < 1980
@@ -61,20 +72,33 @@ module ZipTiny
     return (((date & 0xffff) << 16) | (time & 0xffff))
   end
 
+  # Prepare set of entries to be stored in zip.  The input is a list,
+  # each of its member is one of the following:
+  #   * Array [entname, source, modtime]: arguments to prepare_zip_entry
+  #   * String entname: a filename passed to prepare_zip_entry
+  #   * Hash internal: a result of prepare_zip_entry, stored as-is.
+  # The output is to be passed to make_zip.
   def prepare_zip(flist)
     flist.map { |e|
       if e.is_a?(Hash)
         e
       elsif e.is_a?(String)
-        make_zipdata(e)
+        prepare_zip_entry(e)
       elsif e.is_a?(Array)
-        make_zipdata(*e)
+        prepare_zip_entry(*e)
       else
         raise
       end
     }
   end
 
+  # Compress a single entry for zip.  Internally/automatically called
+  # from make_zip.
+  #
+  #  * ent: an entry, created by prepare_zip or prepare_zip_entry.
+  #  * compressflag: an integer 0--9, corresponding to zlib/zip flags.
+  #
+  # The argument ent is updated to contain compressed data stream.
   def compress_entry(ent, compressflag)
     return ent if ent.member?(:cdata)
 
@@ -108,6 +132,23 @@ module ZipTiny
     ent[:flags] = flags
   end
 
+  # Generate a zip archive data on-memory.
+  #
+  # = a positional argument
+  #  * Array entries: content list to be stored in archive, prepared by prepare_zip.
+  # = keyword arguments
+  #  * Integer compress: strength of zlib/zip compression, in integer 0--9
+  #  * String header: a data prepended to archive.
+  #  * String trailercomment: a comment put to the tail of the archive.
+  #  * Integer offset: a length of data bytes "to be prepended" to the archive.
+  #
+  # The output is a binary string for the archive data.
+  #
+  # It supports generation of "sfx-type" archive, which contains some
+  # data before the archive structure.  In zip format, the length of such prepended
+  # data affects the zip stream internal.  To generate sfx-type archive, either
+  #   * pass the data to be prepended to "header", or
+  #   * pass only the length of the data to "offset", and put by yourself afterwards.
   def make_zip(entries, compress: 9, header: "", trailercomment: "", offset: 0)
     pos = offset
     out = StringIO.new
@@ -119,7 +160,7 @@ module ZipTiny
       pos = out.pos + offset
 
       if e.is_a?(Array) or e.is_a?(String)
-        e = make_zipdata(*e)
+        e = prepare_zip_entry(*e)
       end
 
       name = e[:fname]
