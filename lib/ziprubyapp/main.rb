@@ -324,7 +324,7 @@ class ZipRubyApp::Generator
     script = script(
       features,
       {'CONFIG' => config.to_s,
-       'PKGNAME' => 'ZipRubyApp::__ARCHIVED__'})
+       'PKGNAME' => 'ZipRubyApp::ARCHIVED__'})
 
     header = shebang + "\n" + script
 
@@ -381,7 +381,8 @@ class ZipRubyApp::Generator
     script = <<'EOS'
 # This script is packaged by ziprubyapp
 
-module ZipRubyApp
+module ZipRubyApp; end
+module @@PKGNAME@@
   SOURCES = Hash.new
   FAKEPATH_ROOT = File.expand_path(__FILE__)
   FAKEPATH_REGEX = /\A#{Regexp.quote FAKEPATH_ROOT}\/(.+)/
@@ -391,7 +392,7 @@ module ZipRubyApp
 
   class ZippedModule
     def self.search(spec)
-      return ZipRubyApp::SOURCES[spec]
+      return @@PKGNAME@@::SOURCES[spec]
     end
 
     def initialize(spec, code)
@@ -436,8 +437,8 @@ module ZipRubyApp
   def self.filter_err()
     return if $-d or ! $!
     n = 0
-    n += 1          while $@.length > n && ZipRubyApp::FILTER_REGEX !~ $@[n]
-    $@.delete_at(n) while $@.length > n && ZipRubyApp::FILTER_REGEX =~ $@[n]
+    n += 1          while $@.length > n && @@PKGNAME@@::FILTER_REGEX !~ $@[n]
+    $@.delete_at(n) while $@.length > n && @@PKGNAME@@::FILTER_REGEX =~ $@[n]
   end
 
   def self.get_main; get_module(self::CONFIG[:main]); end
@@ -540,16 +541,16 @@ module Kernel
     Proc.new { |path|
       mypath = path.respond_to?(:to_path) ? path.to_path : path # see rubygems.require
       mypath = "" + mypath                                      # rip off all dirty hacks if any
-      raise SecurityError.new("Insecure operation - require") if ZipRubyApp::RUBYVER < 2007000 && $SAFE > 0 && mypath.tainted?
+      raise SecurityError.new("Insecure operation - require") if @@PKGNAME@@::RUBYVER < 2007000 && $SAFE > 0 && mypath.tainted?
       mypath += ".rb" unless /.rb\z/ =~ mypath
 
-      mod = ZipRubyApp.get_module(mypath)
+      mod = @@PKGNAME@@.get_module(mypath)
       if mod
         return false if $LOADED_FEATURES.include?(mod.spec)
         mod.load
         return true
       else
-        begin _require.call(path) ensure ZipRubyApp.filter_err() end
+        begin _require.call(path) ensure @@PKGNAME@@.filter_err() end
       end
     }}.call(Kernel.instance_method(:require).bind(Kernel))
 #BEGIN COMMENT
@@ -558,7 +559,7 @@ module Kernel
 
   def require_relative(path)
     loc = caller_locations(1,1)[0].absolute_path
-    if ZipRubyApp::RUBYVER < 3000000 && ZipRubyApp::FAKEPATH_REGEX =~ loc
+    if @@PKGNAME@@::RUBYVER < 3000000 && @@PKGNAME@@::FAKEPATH_REGEX =~ loc
       require File.expand_path(path, File.dirname(loc).untaint)
     else
       require File.expand_path(path, File.dirname(loc))
@@ -567,7 +568,7 @@ module Kernel
   end
 end
 
-begin ZipRubyApp.get_main.load(true) ensure ZipRubyApp.filter_err() end
+begin @@PKGNAME@@.get_main.load(true) ensure @@PKGNAME@@.filter_err() end
 __END__
 EOS
 
