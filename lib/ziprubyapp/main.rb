@@ -25,7 +25,7 @@
 # this software, or modified works of those.  The "AS-IS BASIS" clause
 # above still applies in these cases.
 
-VERSION = "1.99.2"
+VERSION = "2.0.0"
 
 require 'optparse'
 require 'find'
@@ -149,9 +149,16 @@ class ZipRubyApp::Generator
     opt.on('-I DIR', '--includedir=DIR', String, "library path to include") { |v| @includedir << v }
     opt.on('--[no-]search-includedir', "search files within -I directories (default true)") { |v| searchincludedir = v }
     opt.on('--[no-]trim-includedir', "shorten file names for files in -I directories (default true)") { |v| @trimlibname = v }
-    opt.on('--sizelimit=INT', Integer) { |v| @sizelimit = (v || 64 * 1048576) }
+    opt.on('--sizelimit=INT', Integer, "maximal file size to process (for both pack and unpack)") { |v| @sizelimit = (v || 64 * 1048576) }
+    opt.version=VERSION
 
-    opt.parse!(argv)
+    begin
+      opt.parse!(argv)
+    rescue OptionParser::ParseError => e
+      $stderr.puts "Error: #{e.to_s}\n"
+      $stderr.puts opt.help
+      exit(2)
+    end
 
     if (argv.length == 0)
       puts opt.help
@@ -366,16 +373,11 @@ class ZipRubyApp::Generator
         break if ! dat.include?(sep) && ! fname.include?(sep)
       end
       zipdat.write("TXD\n")
-      zipdat.write(sep)
-      zipdat.write("\n")
+      zipdat.write(sep, "\n")
       zipdat.write(fname)
-      zipdat.write("\n")
-      zipdat.write(sep)
-      zipdat.write("\n")
+      zipdat.write("\n", sep, "\n")
       zipdat.write(dat)
-      zipdat.write("\n")
-      zipdat.write(sep)
-      zipdat.write("\n")
+      zipdat.write("\n", sep, "\n")
     }
     zipdat.write("TXE\n")
 
@@ -482,15 +484,15 @@ module @@PKGNAME@@
       # per_file zip header
       (_, flags, comp, _, _, crc, csize, size, fnamelen, extlen) =
         read_data(26).unpack("vvvvvVVVvv")
-      fatal "unsupported: deferred length" if (flags & 0x8 != 0)
-      fatal "unsupported: 64bit length" if size == 0xffffffff
-      fatal "too big data (u:#{size})" if size > self::CONFIG[:sizelimit]
-      fatal "too big data (c:#{csize})" if csize > self::CONFIG[:sizelimit]
       fname = read_data(fnamelen)
       read_data(extlen)
+      fatal "#{fname}: unsupported: deferred length" if (flags & 0x8 != 0)
+      fatal "#{fname}: unsupported: 64bit length" if size == 0xffffffff
+      fatal "#{fname}: too big data (u:#{size})" if size > self::CONFIG[:sizelimit]
+      fatal "#{fname}: too big data (c:#{csize})" if csize > self::CONFIG[:sizelimit]
       dat = read_data(csize)
       if (comp == 0)
-        fatal "malformed data: bad length" unless csize == size
+        fatal "#{fname}: malformed data: bad length" unless csize == size
 #BEGIN COMPRESSION
       elsif (comp == 8)
         require 'zlib'
@@ -499,11 +501,11 @@ module @@PKGNAME@@
         buf << zstream.finish
         zstream.close
         dat = buf
-        fatal "malformed data: bad length" unless dat.length == size
-        fatal "Inflate failed: crc mismatch" unless Zlib::crc32(buf) == crc
+        fatal "#{fname}: malformed data: bad length" unless dat.length == size
+        fatal "#{fname}: Inflate failed: crc mismatch" unless Zlib::crc32(buf) == crc
 #END COMPRESSION
       else
-        fatal "unknown compression"
+        fatal "#{fname}: unsupported compression (type #{comp})"
       end
 
       SOURCES[fname] = ZippedModule.new(fname, dat)
