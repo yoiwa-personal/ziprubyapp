@@ -25,7 +25,7 @@
 # this software, or modified works of those.  The "AS-IS BASIS" clause
 # above still applies in these cases.
 
-VERSION = "2.0.0"
+VERSION = "2.0.1"
 
 require 'optparse'
 require 'find'
@@ -150,6 +150,7 @@ class ZipRubyApp::Generator
     opt.on('--[no-]search-includedir', "search files within -I directories (default true)") { |v| searchincludedir = v }
     opt.on('--[no-]trim-includedir', "shorten file names for files in -I directories (default true)") { |v| @trimlibname = v }
     opt.on('--sizelimit=INT', Integer, "maximal file size to process (for both pack and unpack)") { |v| @sizelimit = (v || 64 * 1048576) }
+    opt.on('--random-seed=INT', Integer, "seed for the pseudorandom number") { |v| srand v }
     opt.version=VERSION
 
     begin

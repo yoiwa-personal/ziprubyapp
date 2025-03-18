@@ -11,7 +11,7 @@ ziprubyapp (1) - Make an executable Ruby script bundle using zip archive
       -m, --main=MOD                   name of main module to be loaded
 	  -T, --text-archive               use text-based archive format
       -B, --base64                     encode archive with BASE64
-      -D, --provide-data-handle        provide DATA pseudo filehandle
+      -D, --provide-data-handle        provide DATA pseudo file-handle
       -I, --includedir=DIR             library path to include
           --[no-]search-includedir     search files within -I directories
           --[no-]trim-includedir       shorten file names for files in -I directories
@@ -73,19 +73,19 @@ statements to load the contained modules, without modifying the
   in order of the specifications.
 
   This option will have two kinds of separate effect; if '`-Ilib File.pm`'
-  is speficied in the command line, as an example:
+  is specified in the command line, as an example:
 
   * the command will include '`lib/File.pm`' to the archive, if
     '`File.pm`' does not exist.  This behavior can be disabled by
-    specifing '`--no-search-includedir`'.
+    specifying '`--no-search-includedir`'.
 
   * the file '`lib/File.pm`' will be included to the archive as
-    '`File.pm`', triming the library part of the name. This happens
-    either when the file is speficied explicitly or through C<-I>
-    option.  This behavior can be disabled by specifing
+    '`File.pm`', trimming the library part of the name. This happens
+    either when the file is specified explicitly or through C<-I>
+    option.  This behavior can be disabled by specifying
     '`--no-trim-includedir`'.
 
-    If two or more files will share the same name after this triming,
+    If two or more files will share the same name after this trimming,
     it will be an error and rejected.
 
 ### ARCHIVE OPTIONS
@@ -144,6 +144,24 @@ statements to load the contained modules, without modifying the
   simplicity, the relative position of the `__END__` token in the
   input is remembered when the script is generated.  If you replace
   the main module by zip archivers, the data will be broken.
+
+### OTHER OPTIONS
+
+* --random-seed
+
+  Specify a seed integer for pseudorandom number generators.  Some
+  features (e.g. `--text-archive`) uses random numbers to generate a
+  unique byte sequence in the archive.  This makes the output archives
+  for the same input set may differ time-to-time.  Specifying a random
+  seed will make output somewhat deterministic for
+  the same input.
+
+  It is not a strong guarantee; the output may still differ by small
+  change of inputs or even small environmental changes such as use of
+  different machines or system library updates.
+
+  Main expected use of this option is to put the archive outputs to
+  version control systems such as git or subversion.
 
 ## APIS
 
