@@ -39,7 +39,7 @@ class ZipRubyApp::Generator
 
   def die str; $stderr.print("Error: #{str}\n"); exit 1; end
 
-  def canonicalize_filename(fname)
+  def canonicalize_filename(fname, fixedprefix)
     fname = fname.gsub(%r(/+), "/")
 
     fname = fname.split('/')
@@ -70,26 +70,30 @@ class ZipRubyApp::Generator
 
     ename = fname
     if (@trimlibname)
-      @includedir.each { |l|
-        libdir = l + "/"
-        if ename.start_with?(libdir)
-          ename = ename.delete_prefix(libdir)
-          break
-        end
-      }
+      if fixedprefix != nil
+        ename = ename.delete_prefix(fixedprefix + "/")
+      else
+        @includedir.each { |l|
+          libdir = l + "/"
+          if ename.start_with?(libdir)
+            ename = ename.delete_prefix(libdir)
+            break
+          end
+        }
+      end
     end
     die "#{fname}: name is absolute\n" if ename =~ %r@\A/@
     die "#{fname}: name contains ..\n" if ename =~ %r@(\A|/)../@
     return [fname, ename]
   end
 
-  def add_file(fname)
+  def add_file(fname, fixedprefix)
     # behavior of main mode:
     #  1: no op; do later
     #  2: add if first
     #  3: noop
 
-    fname, ename = canonicalize_filename(fname)
+    fname, ename = canonicalize_filename(fname, fixedprefix)
 
     die "cannot find #{fname}" unless File.exist?(fname)
     die "#{fname} is not a plain file" unless File.file?(fname)
@@ -110,10 +114,10 @@ class ZipRubyApp::Generator
     end
   end
 
-  def add_dir(fname)
+  def add_dir(fname, prefix)
     Find.find(fname) {|f|
       unless f =~ %r((\A|\/)\.[^\/]*\z)
-        add_file(f) if f =~ /\.rb\z/
+        add_file(f, prefix) if f =~ /\.rb\z/
       end
     }
   end
@@ -198,11 +202,13 @@ class ZipRubyApp::Generator
     end
 
     argv.each { |f|
+      foundprefix = nil
       unless File.exist?(f)
         if searchincludedir
-          includedir.each { |l|
+          @includedir.each { |l|
             ff = "#{l}/#{f}"
             if File.exist?(ff)
+              foundprefix = l
               f = ff
               break
             end
@@ -210,10 +216,10 @@ class ZipRubyApp::Generator
         end
       end
       if File.file?(f)
-        add_file(f)
+        add_file(f, foundprefix)
       elsif File.directory?(f)
         f = f.sub(/\/+\z/, "")
-        add_dir(f)
+        add_dir(f, foundprefix)
       else
         die "file not found: #{f}" unless File.exist?(f)
         die "file unknown type: #{f}"
