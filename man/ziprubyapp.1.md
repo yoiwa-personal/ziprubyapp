@@ -157,6 +157,9 @@ you need to change some behavior upon packaging, something like
 
 can be used.
 
+In Ruby, `require_relative` is useful to load the modules in the
+same directory as the script, and it also works well with this tool.
+
 ## LIMITATIONS
 
 * Only pure Ruby scripts or modules can be loaded from zip
