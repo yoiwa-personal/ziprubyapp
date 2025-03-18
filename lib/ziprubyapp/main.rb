@@ -161,9 +161,9 @@ module ZipRubyApp
     # determine main file and output name
     # argument types:
     #   type 1: a single directory dir, no main specified
-    #     -> include all files in dir, search for the main file (single .pl), output dir.plz
+    #     -> include all files in dir, search for the main file (main.rb or __main__.rb), output dir.plz
     #   type 2: a set of files
-    #     -> specified files included, first argument must be .pl file, output first.plz
+    #     -> specified files included, first argument must be .rb file, output first.plz
     #   type 3: main file specified
     #     -> specified files included, main file must be included, output main.plz
 
