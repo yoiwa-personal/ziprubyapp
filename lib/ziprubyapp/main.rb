@@ -64,7 +64,7 @@ class ZipRubyApp::Generator
 
     fname = fname.join('/')
     
-    fname = fname.sub(%r@^(\./)+@, "")
+    fname = fname.sub(%r@\A(\./)+@, "")
     while (fname.sub!(%r@/./@, "/")); end
     while (fname.sub!(%r@(/[^/]+/../)@, "/")); end
 
@@ -78,8 +78,8 @@ class ZipRubyApp::Generator
         end
       }
     end
-    die "#{fname}: name is absolute\n" if ename =~ %r@^/@s;
-    die "#{fname}: name contains ..\n" if ename =~ %r@(^|/)../@s;
+    die "#{fname}: name is absolute\n" if ename =~ %r@\A/@;
+    die "#{fname}: name contains ..\n" if ename =~ %r@(\A|/)../@;
     return [fname, ename]
   end
 
@@ -92,10 +92,10 @@ class ZipRubyApp::Generator
     fname, ename = canonicalize_filename(fname)
 
     die "cannot find #{fname}" unless File.exist?(fname);
-    die "$fname is not a plain file" unless File.file?(fname);
+    die "#{fname} is not a plain file" unless File.file?(fname);
     if @enames.include?(ename)
       if fname != @enames[ename]
-        die "duplicated files: #{fname} and #{@enames[$ename]} will be same name in the archive"
+        die "duplicated files: #{fname} and #{@enames[ename]} will be same name in the archive"
         # else: skip
       end
     else
@@ -112,8 +112,8 @@ class ZipRubyApp::Generator
 
   def add_dir(fname)
     Find.find(fname) {|f|
-      unless f =~ %r((^|\/)\.[^\/]*$)s
-        add_file(f) if f =~ /\.rb$/s
+      unless f =~ %r((\A|\/)\.[^\/]*\z)
+        add_file(f) if f =~ /\.rb\z/
       end
     }
   end
@@ -172,7 +172,7 @@ class ZipRubyApp::Generator
     @enames = Hash.new
 
     @includedir.map! { |f|
-      f.sub(/\/+$/s, "")
+      f.sub(/\/+\z/, "")
     }
 
     if (mainopt != nil)
@@ -183,7 +183,7 @@ class ZipRubyApp::Generator
 
     if (argv.length == 1 and File.directory? argv[0])
       dir = argv[0]
-      dir = dir.sub(/\/+$/, "")
+      dir = dir.sub(/\/+\z/, "")
       @possible_out = dir
       @includedir << dir
       searchincludedir = false
@@ -212,7 +212,7 @@ class ZipRubyApp::Generator
       if File.file?(f)
         add_file(f)
       elsif File.directory?(f)
-        f = f.sub(/\/+$/, "")
+        f = f.sub(/\/+\z/, "")
         add_dir(f)
       else
         die "file not found: #{f}" unless File.exist?(f)
@@ -236,7 +236,7 @@ class ZipRubyApp::Generator
         die("cannot guess name")
       end
       out = File.basename @possible_out
-      out = out.sub(/(\.rb)?$/, '.rbz')
+      out = out.sub(/(\.rb)?\z/, '.rbz')
       print "output is set to: #{out}\n"
     end
 
@@ -571,7 +571,7 @@ begin ZipRubyApp.get_main.load(true) ensure ZipRubyApp.filter_err() end
 __END__
 EOS
 
-    while script.gsub!(%r/^#BEGIN\ ([A-Z]+)\n(.*?)^#END\ \1\n/ms) { features.include?($1) ? $2 : "" }; end
+    while script.gsub!(%r/^#BEGIN\ ([A-Z]+)\n(.*?)^#END\ \1\n/m) { features.include?($1) ? $2 : "" }; end
     script.gsub!(%r/@@([A-Z]+)@@/) { replace[$1] }
     return script
   end
