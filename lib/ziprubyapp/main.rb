@@ -78,8 +78,8 @@ class ZipRubyApp::Generator
         end
       }
     end
-    die "#{fname}: name is absolute\n" if ename =~ %r@\A/@;
-    die "#{fname}: name contains ..\n" if ename =~ %r@(\A|/)../@;
+    die "#{fname}: name is absolute\n" if ename =~ %r@\A/@
+    die "#{fname}: name contains ..\n" if ename =~ %r@(\A|/)../@
     return [fname, ename]
   end
 
@@ -91,8 +91,8 @@ class ZipRubyApp::Generator
 
     fname, ename = canonicalize_filename(fname)
 
-    die "cannot find #{fname}" unless File.exist?(fname);
-    die "#{fname} is not a plain file" unless File.file?(fname);
+    die "cannot find #{fname}" unless File.exist?(fname)
+    die "#{fname} is not a plain file" unless File.file?(fname)
     if @enames.include?(ename)
       if fname != @enames[ename]
         die "duplicated files: #{fname} and #{@enames[ename]} will be same name in the archive"
@@ -105,7 +105,7 @@ class ZipRubyApp::Generator
         @main = ename if @main == nil
         @possible_out = ename if @possible_out == nil
       end
-      @enames[ename] = fname;
+      @enames[ename] = fname
       @files << [ename, fname]
     end
   end
@@ -275,7 +275,7 @@ class ZipRubyApp::Generator
     }
 
     mode = 0o666
-    mode = 0o777 if (/\A#!/ =~ shebang);
+    mode = 0o777 if (/\A#!/ =~ shebang)
 
     if simulate_data
       require 'ripper'
@@ -295,7 +295,7 @@ class ZipRubyApp::Generator
 
     headerdata, zipdata = create_sfx(@files, shebang, textarchive, compression, base64, simulate_data)
 
-    print "writing to #{out}\n";
+    print "writing to #{out}\n"
 
     open(out, "wb", mode) { |of|
       of.write headerdata
@@ -304,7 +304,7 @@ class ZipRubyApp::Generator
   end
 
   def create_sfx(files, shebang, textarchive, compression, base64, simulate_data)
-    $stderr.print("create_sfx: b64 #{base64}, simdata #{simulate_data}\n") if @@debug;
+    $stderr.print("create_sfx: b64 #{base64}, simdata #{simulate_data}\n") if @@debug
 
     quote = nil
     if (base64)
@@ -469,7 +469,7 @@ module @@PKGNAME@@
 #END QUOTE
 
   while true do
-    hdr = read_data(4);
+    hdr = read_data(4)
     case hdr
 #BEGIN ZIPARCHIVE
     when "PK\3\4"
@@ -480,11 +480,11 @@ module @@PKGNAME@@
       fatal "unsupported: 64bit length" if size == 0xffffffff
       fatal "too big data (u:#{size})" if size > self::CONFIG[:sizelimit]
       fatal "too big data (c:#{csize})" if csize > self::CONFIG[:sizelimit]
-      fname = read_data(fnamelen);
-      read_data(extlen);
-      dat = read_data(csize);
+      fname = read_data(fnamelen)
+      read_data(extlen)
+      dat = read_data(csize)
       if (comp == 0)
-        fatal "malformed data: bad length" unless csize == size;
+        fatal "malformed data: bad length" unless csize == size
 #BEGIN COMPRESSION
       elsif (comp == 8)
         require 'zlib'
@@ -493,18 +493,18 @@ module @@PKGNAME@@
         buf << zstream.finish
         zstream.close
         dat = buf
-        fatal "malformed data: bad length" unless dat.length == size;
-        fatal "Inflate failed: crc mismatch" unless Zlib::crc32(buf) == crc;
+        fatal "malformed data: bad length" unless dat.length == size
+        fatal "Inflate failed: crc mismatch" unless Zlib::crc32(buf) == crc
 #END COMPRESSION
       else
-        fatal "unknown compression";
+        fatal "unknown compression"
       end
 
-      SOURCES[fname] = ZippedModule.new(fname, dat);
+      SOURCES[fname] = ZippedModule.new(fname, dat)
     when "PK\1\2"
       break # central directory found. exiting.
     when "PK\5\6"
-      fatal "malformed or empty archive";
+      fatal "malformed or empty archive"
 #END ZIPARCHIVE
 #BEGIN TEXTARCHIVE
     when "TXD\n"
@@ -519,7 +519,7 @@ module @@PKGNAME@@
       break
 #END TEXTARCHIVE
     else
-      fatal "malformed data";
+      fatal "malformed data"
     end
   end
   @data.close
