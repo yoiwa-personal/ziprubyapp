@@ -32,10 +32,11 @@ require 'find'
 require 'stringio'
 require_relative 'zip_tiny.rb'
 
-module ZipRubyApp
+module ZipRubyApp; end
+
+class ZipRubyApp::Generator
   @@debug = false
 
-  module_function
   def die str; $stderr.print("Error: #{str}\n"); exit 1; end
 
   def canonicalize_filename(fname)
@@ -68,8 +69,8 @@ module ZipRubyApp
     while (fname.sub!(%r@(/[^/]+/../)@, "/")); end
 
     ename = fname
-    if (@@trimlibname)
-      @@includedir.each { |l|
+    if (@trimlibname)
+      @includedir.each { |l|
         libdir = l + "/"
         if ename.start_with?(libdir)
           ename = ename.delete_prefix(libdir)
@@ -92,20 +93,20 @@ module ZipRubyApp
 
     die "cannot find #{fname}" unless File.exist?(fname);
     die "$fname is not a plain file" unless File.file?(fname);
-    if @@enames.include?(ename)
-      if fname != @@enames[ename]
-        die "duplicated files: #{fname} and #{@@enames[$ename]} will be same name in the archive"
+    if @enames.include?(ename)
+      if fname != @enames[ename]
+        die "duplicated files: #{fname} and #{@enames[$ename]} will be same name in the archive"
         # else: skip
       end
     else
-      if (@@maintype == 1)
+      if (@maintype == 1)
         # do it later
-      elsif @@maintype == 2
-        @@main = ename if @@main == nil
-        @@possible_out = ename if @@possible_out == nil
+      elsif @maintype == 2
+        @main = ename if @main == nil
+        @possible_out = ename if @possible_out == nil
       end
-      @@enames[ename] = fname;
-      @@files << [ename, fname]
+      @enames[ename] = fname;
+      @files << [ename, fname]
     end
   end
 
@@ -125,10 +126,10 @@ module ZipRubyApp
     textarchive = false
     simulate_data = false
 
-    @@includedir = []
-    @@sizelimit = 64 * 1048576
+    @includedir = []
+    @sizelimit = 64 * 1048576
 
-    @@trimlibname = 1
+    @trimlibname = 1
     searchincludedir = 1
 
     opt = OptionParser.new
@@ -141,10 +142,10 @@ module ZipRubyApp
     opt.on('-T', '--text-archive', "use text-based archive format") { |v| textarchive = true }
     opt.on('-B', '--base64', "encode archive with BASE64") { |v| base64 = true }
     opt.on('-D', '--provide-data-handle', "provide DATA pseudo filehandle") { simulate_data = true }
-    opt.on('-I DIR', '--includedir=DIR', String, "library path to include") { |v| @@includedir << v }
+    opt.on('-I DIR', '--includedir=DIR', String, "library path to include") { |v| @includedir << v }
     opt.on('--[no-]search-includedir', "search files within -I directories (default true)") { |v| searchincludedir = v }
-    opt.on('--[no-]trim-includedir', "shorten file names for files in -I directories (default true)") { |v| @@trimlibname = v }
-    opt.on('--sizelimit=INT', Integer) { |v| @@sizelimit = (v || 64 * 1048576) }
+    opt.on('--[no-]trim-includedir', "shorten file names for files in -I directories (default true)") { |v| @trimlibname = v }
+    opt.on('--sizelimit=INT', Integer) { |v| @sizelimit = (v || 64 * 1048576) }
 
     opt.parse!(argv)
 
@@ -153,10 +154,10 @@ module ZipRubyApp
       exit(2)
     end
 
-    @@possible_out = nil
-    @@main = nil
+    @possible_out = nil
+    @main = nil
     dir = nil
-    @@maintype = 0
+    @maintype = 0
 
     # determine main file and output name
     # argument types:
@@ -167,33 +168,33 @@ module ZipRubyApp
     #   type 3: main file specified
     #     -> specified files included, main file must be included, output main.plz
 
-    @@files = Array.new
-    @@enames = Hash.new
+    @files = Array.new
+    @enames = Hash.new
 
-    @@includedir.map! { |f|
+    @includedir.map! { |f|
       f.sub(/\/+$/s, "")
     }
 
     if (mainopt != nil)
-      @@main = mainopt
-      @@possible_out = @@main
-      @@maintype = 3
+      @main = mainopt
+      @possible_out = @main
+      @maintype = 3
     end
 
     if (argv.length == 1 and File.directory? argv[0])
       dir = argv[0]
       dir = dir.sub(/\/+$/, "")
-      @@possible_out = dir
-      @@includedir << dir
+      @possible_out = dir
+      @includedir << dir
       searchincludedir = false
-      @@trimlibname = true
-      @@maintype = 1 unless @@maintype == 3
+      @trimlibname = true
+      @maintype = 1 unless @maintype == 3
     else
-      @@maintype = 2 unless @@maintype == 3
+      @maintype = 2 unless @maintype == 3
     end
 
     if (mainopt != nil)
-      @@main = canonicalize_filename(@@main)[1]
+      @main = canonicalize_filename(@main)[1]
     end
 
     argv.each { |f|
@@ -219,48 +220,48 @@ module ZipRubyApp
       end
     }
 
-    if @@maintype == 1
+    if @maintype == 1
       ["__main__.rb", "main.rb"].each { |f|
-        if @@enames.include?(f)
-          @@main = f
+        if @enames.include?(f)
+          @main = f
           break
         end
       }
     end
 
-    die "no main files guessed" unless @@main != nil
+    die "no main files guessed" unless @main != nil
 
     if (out == nil)
-      if (@@possible_out == nil or @@possible_out == '.')
+      if (@possible_out == nil or @possible_out == '.')
         die("cannot guess name")
       end
-      out = File.basename @@possible_out
+      out = File.basename @possible_out
       out = out.sub(/(\.rb)?$/, '.rbz')
       print "output is set to: #{out}\n"
     end
 
-    if @@maintype != 3 || mainopt != @@main
-      print "using #{@@main} as main script\n"
+    if @maintype != 3 || mainopt != @main
+      print "using #{@main} as main script\n"
     end
 
-    if not @@enames.include?(@@main)
-      die "no main file #{@@main.inspect} will be contained in archive"
+    if not @enames.include?(@main)
+      die "no main file #{@main.inspect} will be contained in archive"
     end
 
-    @@files.each {|f|
+    @files.each {|f|
       printf("%s <- %s\n", f[0], f[1])
     }
 
     die "bad --compress=#{compression}" unless 0 <= compression && compression <= 9
 
-    ZipTiny::__setopt(sizelimit: @@sizelimit, debug: @@debug)
+    ZipTiny::__setopt(sizelimit: @sizelimit, debug: @@debug)
 
-    @@files = ZipTiny::prepare_zip(@@files)
+    @files = ZipTiny::prepare_zip(@files)
 
     # consult main script for top comments and she-bang
 
     # uses data structure internal to ZipTiny
-    mainent = @@files.select { |e| e[:fname] == @@main }
+    mainent = @files.select { |e| e[:fname] == @main }
     raise if mainent.length != 1
     mainent = mainent[0]
 
@@ -292,7 +293,7 @@ module ZipRubyApp
 
     # no quotation support for ruby (not needed)
 
-    headerdata, zipdata = create_sfx(@@files, shebang, textarchive, compression, base64, simulate_data)
+    headerdata, zipdata = create_sfx(@files, shebang, textarchive, compression, base64, simulate_data)
 
     print "writing to #{out}\n";
 
@@ -313,7 +314,7 @@ module ZipRubyApp
 
     # prepare launching script
 
-    config = {main: @@main, dequote: quote, simulate_data: simulate_data, sizelimit: @@sizelimit}
+    config = {main: @main, dequote: quote, simulate_data: simulate_data, sizelimit: @sizelimit}
     features = ["MAIN"] +
                (textarchive ? ["TEXTARCHIVE"] : ["ZIPARCHIVE"]) +
                (quote ? ["QUOTE"] : []) +
@@ -574,6 +575,5 @@ EOS
     script.gsub!(%r/@@([A-Z]+)@@/) { replace[$1] }
     return script
   end
-
-  process(ARGV)
 end
+ZipRubyApp::Generator::new().process(ARGV)
