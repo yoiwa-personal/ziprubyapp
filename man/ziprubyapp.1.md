@@ -150,18 +150,17 @@ statements to load the contained modules, without modifying the
 * --random-seed
 
   Specify a seed integer for pseudorandom number generators.  Some
-  features (e.g. `--text-archive`) uses random numbers to generate a
+  features (e.g. `--text-archive`) use random numbers to generate a
   unique byte sequence in the archive.  This makes the output archives
-  for the same input set may differ time-to-time.  Specifying a random
-  seed will make output somewhat deterministic for
-  the same input.
-
+  for the same input set to differ time-to-time.  Specifying a random
+  seed will make output somewhat deterministic for the same input.
   It is not a strong guarantee; the output may still differ by small
   change of inputs or even small environmental changes such as use of
   different machines or system library updates.
-
   Main expected use of this option is to put the archive outputs to
   version control systems such as git or subversion.
+  
+  In Ruby, seeds will be an 128-bit integer.
 
 ## APIS
 
