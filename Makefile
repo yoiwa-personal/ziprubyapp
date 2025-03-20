@@ -6,7 +6,7 @@ SRCDIR = lib/ziprubyapp
 
 all: bin/ziprubyapp
 
-bin/ziprubyapp: $(SRCDIR)/main.rb $(SRCDIR)/zip_tiny.rb
+bin/ziprubyapp: $(SRCDIR)/main.rb $(SRCDIR)/sfx_generate.rb $(SRCDIR)/zip_tiny.rb
 	$(SRCDIR)/main.rb -I $(SRCDIR) $(ZIPRUBYAPPOPT) -o $@ $^
 	$@ -I $(SRCDIR) $(ZIPRUBYAPPOPT) -o $@ $^
 	$@ -I $(SRCDIR) $(ZIPRUBYAPPOPT) -o $@ $^
