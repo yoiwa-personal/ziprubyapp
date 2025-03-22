@@ -1,16 +1,92 @@
 require 'zlib'
 require 'stringio'
 
-module ZipTiny
+module ZipRubyApp; end
+
+class ZipRubyApp::ZipTiny
+  class CompressEntry
+    def initialize(fname:, content:, mtime:, source: nil, parent: nil)
+      @fname = fname
+      @content = content.force_encoding("ASCII-8BIT")
+      @mtime = mtime
+      @source = source
+      @parent = parent
+      @compressflag = nil
+      @cdata = nil
+      @zipflags = nil
+    end
+
+    attr_reader :fname, :content, :mtime, :cdata, :zipflags, :source
+
+    # Compress a single entry for zip.  Internally/automatically called
+    # from make_zip.
+    #
+    #  * self: an entry, created by prepare_zip or prepare_zip_entry.
+    #  * compressflag: an integer 0--9, corresponding to zlib/zip flags.
+    #
+    # The self is updated to contain compressed data stream.
+    def compress(compressflag)
+      return if @compressflag == compressflag
+      content = @content
+      cdata = content
+
+      if @parent && content.length > @parent.sizelimit
+        raise "#{ent[:fname]}: too large data"
+      end
+
+      zipflags = [0, 10, 0]
+
+      if (compressflag >= 1)
+        zstream = Zlib::Deflate.new(compressflag, -15)
+        cdata = zstream.deflate(content, Zlib::FINISH).force_encoding("ASCII-8bit")
+        zstream.close
+        zipflags = [8, 20, (compressflag > 7) ? 1 : (compressflag > 2) ? 0 : 2]
+      end
+
+      $stderr.printf("compressing %s: %d -> %d\n", ent[:fname], content.length, cdata.length) if @debug
+      # undo compression if it is not shrunk
+      if content.length <= cdata.length
+        cdata = content
+        zipflags = [0, 10, 0]
+      end
+
+      raise "error: #{ent[:fname]}: too large data after compression" if @parent && cdata.length > @parent.sizelimit
+
+      @cdata = cdata
+      @zipflags = zipflags
+    end
+
+    def is_compressed?
+      return @cdata != nil
+    end
+
+    def is_really_shrunk?
+      return @cdata != nil && @zipflags[0] != 0
+    end
+  end
+
   @@sizelimit = 64 * 1048576
   @@debug = false
 
-  module_function
+  def initialize(entries = [])
+    @entries = []
+    @entries_hash = {}
+    @sizelimit = @@sizelimit
+    @debug = @@debug
+    add_entries(entries)
+  end
 
-  def ZipTiny::__setopt(sizelimit: (64 * 1048576), debug: false)
-    @@sizelimit = sizelimit
+  def __setopt(sizelimit: nil, debug: false)
+    @sizelimit = sizelimit || 64 * 1048576
+    @debug = debug
+  end
+
+  def self.__setopt(sizelimit: nil, debug: false)
+    @@sizelimit = sizelimit || 64 * 1048576
     @@debug = debug
   end
+
+  attr_reader :sizelimit, :debug
 
   # prepare a single entry to zip.
   #
@@ -22,11 +98,14 @@ module ZipTiny
   #   * Array ["string"]: the content of the string itself
   #
   # * modtime: modification time, if not available from file or handle
-  def prepare_zip_entry(entname, source=nil, modtime=nil)
+  def add_entry(entname, source=nil, modtime=nil)
     content = nil
 
+    raise "duplicated entry #{entname}" if @entries_hash.include?(entname)
+    
     if source.is_a?(Array)
-      content = source.join("")
+      content = source.join("").force_encoding("ASCII-8bit")
+      source = [content]
     else
       handle = nil
       handle_close = false
@@ -38,11 +117,13 @@ module ZipTiny
         elsif source.is_a?(IO)
           handle = source
         end
-        content = handle.read(@@sizelimit)
+        content = handle.read(@sizelimit)
+        content = "" if content == nil
         excess = handle.read(1)
         if excess != nil && excess != ""
-          raise "#{source}: size over (#{@@sizelimit})"
+          raise "#{source}: size over (#{@sizelimit})"
         end
+        content.force_encoding("ASCII-8bit")
         begin
           modtime = handle.stat.mtime
         rescue SystemCallError
@@ -56,15 +137,19 @@ module ZipTiny
     end
 
     modtime = Time.now if modtime == nil
-    return {
+    entry = CompressEntry.new(
       fname: entname,
       content: content,
-      mtime: modtime
-    }
+      mtime: modtime,
+      source: source,
+      parent: self
+    )
+    @entries << entry
+    @entries_hash[entname] = entry
   end
 
   # convert Time structure to 32-bit MS-DOS timestamp
-  def dosdate(unixtime)
+  def self.dosdate(unixtime)
     u = unixtime.getlocal
     return 0 if u.year < 1980
     time = u.hour << 11 | u.min << 5 | u.sec >> 1
@@ -78,58 +163,36 @@ module ZipTiny
   #   * String entname: a filename passed to prepare_zip_entry
   #   * Hash internal: a result of prepare_zip_entry, stored as-is.
   # The output is to be passed to make_zip.
-  def prepare_zip(flist)
-    flist.map { |e|
-      if e.is_a?(Hash)
-        e
-      elsif e.is_a?(String)
-        prepare_zip_entry(e)
+  def add_entries(flist)
+    flist.each { |e|
+      if e.is_a?(String)
+        add_entry(e)
       elsif e.is_a?(Array)
-        prepare_zip_entry(*e)
+        add_entry(*e)
       else
         raise
       end
     }
   end
 
-  # Compress a single entry for zip.  Internally/automatically called
-  # from make_zip.
-  #
-  #  * ent: an entry, created by prepare_zip or prepare_zip_entry.
-  #  * compressflag: an integer 0--9, corresponding to zlib/zip flags.
-  #
-  # The argument ent is updated to contain compressed data stream.
-  def compress_entry(ent, compressflag)
-    return ent if ent.member?(:cdata)
+  def self.prepare_zip(l)
+    return self.new(l)
+  end
 
-    content = ent[:content]
-    cdata = content
+  def each_entry(&proc)
+    @entries.each(&proc)
+  end
 
-    raise "#{ent[:fname]}: too large data" if content.length > @@sizelimit
-
-    compressmethod, versionrequired, flags = 0, 10, 0
-
-    if (compressflag >= 1)
-      zstream = Zlib::Deflate.new(compressflag, -15)
-      cdata = zstream.deflate(content, Zlib::FINISH)
-      zstream.close
-      compressmethod, versionrequired = 8, 20
-      flags = (compressflag > 7) ? 1 : (compressflag > 2) ? 0 : 2
+  def include?(name)
+    @entries_hash.include?(name)
+  end
+  
+  def find_entry(name)
+    if @entries_hash.include?(name)
+      @entries_hash[name]
+    else
+      nil
     end
-
-    $stderr.printf("compressing %s: %d -> %d\n", ent[:fname], content.length, cdata.length) if @@debug
-    # undo compression if it is not shrunk
-    if content.length <= cdata.length
-      cdata = content
-      compressmethod, versionrequired, flags = 0, 10, 0
-    end
-
-    raise "error: #{ent[:fname]}: too large data after compression" if cdata.length > @@sizelimit
-
-    ent[:cdata] = cdata
-    ent[:compressmethod] = compressmethod
-    ent[:versionrequired] = versionrequired
-    ent[:flags] = flags
   end
 
   # Generate a zip archive data on-memory.
@@ -149,39 +212,35 @@ module ZipTiny
   # data affects the zip stream internal.  To generate sfx-type archive, either
   #   * pass the data to be prepended to "header", or
   #   * pass only the length of the data to "offset", and put by yourself afterwards.
-  def make_zip(entries, compress: 9, header: "", trailercomment: "", offset: 0)
+  def make_zip(compress: 9, header: "", trailercomment: "", offset: 0)
     pos = offset
-    out = StringIO.new
-    gheader_accumulate = StringIO.new
+    out = StringIO.new('', "wb:ASCII-8bit")
+    gheader_accumulate = StringIO.new('', "wb:ASCII-8bit")
     fcount = 0
 
     out.write(header)
-    entries.each{ |e|
+    @entries.each{ |e|
       pos = out.pos + offset
 
-      if e.is_a?(Array) or e.is_a?(String)
-        e = prepare_zip_entry(*e)
-      end
-
-      name = e[:fname]
-      content = e[:content]
-      modtime = e[:mtime]
+      name = e.fname
+      content = e.content
+      modtime = e.mtime
 
       crc = Zlib::crc32(content)
 
-      compress_entry(e, compress)
+      e.compress(compress)
 
-      cdata = e[:cdata]
-      compressmethod = e[:compressmethod]
-      versionrequired = e[:versionrequired]
-      flags = e[:flags]
+      cdata = e.cdata
+      (compressmethod, versionrequired, flags) = e.zipflags
+
+      name = name.dup.force_encoding("ASCII-8bit")
 
       flags = ((flags << 1) & 6)
       header = [0x04034b50,
 	        versionrequired,
 	        flags,
 	        compressmethod,
-	        dosdate(modtime),
+	        self.class.dosdate(modtime),
 	        crc,
 	        cdata.length,
 	        content.length,
@@ -193,7 +252,7 @@ module ZipTiny
 	          versionrequired,
 	          flags,
 	          compressmethod,
-		  dosdate(modtime),
+		  self.class.dosdate(modtime),
 		  crc,
 		  cdata.length,
 		  content.length,
@@ -228,11 +287,14 @@ module ZipTiny
     out.close
     return out.string
   end
+
+  def self.make_zip(*args, **kwargs)
+    self.new(args).make_zip(**kwargs)
+  end
 end
 
 if __FILE__ == $0
-  z = ZipTiny::make_zip([["1", ["1", "1"]],
-                         "zip_tiny.rb"])
+  z = ZipRubyApp::ZipTiny.make_zip(["1", ["1", "1"]],
+                                   "zip_tiny.rb")
   print z
 end
-
