@@ -75,16 +75,21 @@ if (ARGV.length == 0)
   exit(2)
 end
 
-sfx = ZipRubyApp::SFXGenerate::ziprubyapp(
-  ARGV,
-  out: out,
-  mainopt: mainopt,
-  compression: compression,
-  base64: base64,
-  textarchive: textarchive,
-  simulate_data: simulate_data,
-  includedir: includedir,
-  searchincludedir: searchincludedir,
-  trimlibname: trimlibname,
-  sizelimit: sizelimit )
+begin
+  sfx = ZipRubyApp::SFXGenerate::ziprubyapp(
+    ARGV,
+    out: out,
+    mainopt: mainopt,
+    compression: compression,
+    base64: base64,
+    textarchive: textarchive,
+    simulate_data: simulate_data,
+    includedir: includedir,
+    searchincludedir: searchincludedir,
+    trimlibname: trimlibname,
+    sizelimit: sizelimit )
+rescue ZipRubyApp::CommandError => e
+  $stderr.print("Error: #{e.message}\n")
+  exit 1
+end
 

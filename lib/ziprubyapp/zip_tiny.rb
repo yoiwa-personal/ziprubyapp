@@ -76,13 +76,13 @@ class ZipRubyApp::ZipTiny
     add_entries(entries)
   end
 
-  def __setopt(sizelimit: (64 * 1048576), debug: false)
-    @sizelimit = sizelimit
+  def __setopt(sizelimit: nil, debug: false)
+    @sizelimit = sizelimit || 64 * 1048576
     @debug = debug
   end
 
-  def self.__setopt(sizelimit: (64 * 1048576), debug: false)
-    @@sizelimit = sizelimit
+  def self.__setopt(sizelimit: nil, debug: false)
+    @@sizelimit = sizelimit || 64 * 1048576
     @@debug = debug
   end
 

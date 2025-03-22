@@ -31,26 +31,29 @@ require_relative 'zip_tiny.rb'
 
 module ZipRubyApp; end
 
+class ZipRubyApp::CommandError < RuntimeError; end
+
 class ZipRubyApp::SFXGenerate
   VERSION = "2.0.1"
 
   @@debug = false
 
-  def die str; $stderr.print("Error: #{str}\n"); exit 1; end
+  def die str; raise ZipRubyApp::CommandError.new(str); end
 
   # Mid-level interfaces
 
   # Create an instance for SFXGenerate
   #  * sizelimit: a safety limit for member size, default to 64MB.
-  def initialize(sizelimit: (64 * 1048576))
+  def initialize(sizelimit: nil)
     @zip = ZipRubyApp::ZipTiny::new
+    @zip.__setopt(sizelimit: @sizelimit, debug: @@debug)
 
     @possible_out = nil
     @main = nil
     dir = nil
     @maintype = 0
     @includedir = []
-    @sizelimit = sizelimit
+    @sizelimit = sizelimit || 64 * 1048576
   end
 
   # Add an entry to sfx.
@@ -75,7 +78,7 @@ class ZipRubyApp::SFXGenerate
                simulate_data: false
               )
     if not @zip.include?(main)
-      die "no main file #{main.inspect} will be contained in archive"
+      die("no main file #{main.inspect} will be contained in archive")
     end
 
     @zip.each_entry {|f|
@@ -84,9 +87,7 @@ class ZipRubyApp::SFXGenerate
       printf("%s <- %s\n", entname, origname)
     } if @interactive
 
-    die "bad --compress=#{compression}" unless 0 <= compression && compression <= 9
-
-    @zip.__setopt(sizelimit: @sizelimit, debug: @@debug)
+    die("bad compression strength #{compression}") unless 0 <= compression && compression <= 9
 
     # consult main script for top comments and she-bang
 
@@ -221,10 +222,9 @@ class ZipRubyApp::SFXGenerate
   # Arguments are:
   #     argv is a list of file,
   #     other options correspond to command line options.
-
   def self.ziprubyapp(argv,
-                           sizelimit: (64 * 1048576),
-                           **kw)
+                      sizelimit: nil,
+                      **kw)
     self.new(sizelimit: sizelimit).command_process(argv, **kw)
   end
 
