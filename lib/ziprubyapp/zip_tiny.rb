@@ -4,6 +4,67 @@ require 'stringio'
 module ZipRubyApp; end
 
 class ZipRubyApp::ZipTiny
+  class CompressEntry
+    def initialize(fname:, content:, mtime:, source: nil, parent: nil)
+      @fname = fname
+      @content = content.force_encoding("ASCII-8BIT")
+      @mtime = mtime
+      @source = source
+      @parent = parent
+      @compressflag = nil
+      @cdata = nil
+      @zipflags = nil
+    end
+
+    attr_reader :fname, :content, :mtime, :cdata, :zipflags, :source
+
+    # Compress a single entry for zip.  Internally/automatically called
+    # from make_zip.
+    #
+    #  * self: an entry, created by prepare_zip or prepare_zip_entry.
+    #  * compressflag: an integer 0--9, corresponding to zlib/zip flags.
+    #
+    # The self is updated to contain compressed data stream.
+    def compress(compressflag)
+      return if @compressflag == compressflag
+      content = @content
+      cdata = content
+
+      if @parent && content.length > @parent.sizelimit
+        raise "#{ent[:fname]}: too large data"
+      end
+
+      zipflags = [0, 10, 0]
+
+      if (compressflag >= 1)
+        zstream = Zlib::Deflate.new(compressflag, -15)
+        cdata = zstream.deflate(content, Zlib::FINISH).force_encoding("ASCII-8bit")
+        zstream.close
+        zipflags = [8, 20, (compressflag > 7) ? 1 : (compressflag > 2) ? 0 : 2]
+      end
+
+      $stderr.printf("compressing %s: %d -> %d\n", ent[:fname], content.length, cdata.length) if @debug
+      # undo compression if it is not shrunk
+      if content.length <= cdata.length
+        cdata = content
+        zipflags = [0, 10, 0]
+      end
+
+      raise "error: #{ent[:fname]}: too large data after compression" if @parent && cdata.length > @parent.sizelimit
+
+      @cdata = cdata
+      @zipflags = zipflags
+    end
+
+    def is_compressed?
+      return @cdata != nil
+    end
+
+    def is_really_shrunk?
+      return @cdata != nil && @zipflags[0] != 0
+    end
+  end
+
   @@sizelimit = 64 * 1048576
   @@debug = false
 
@@ -25,6 +86,8 @@ class ZipRubyApp::ZipTiny
     @@debug = debug
   end
 
+  attr_reader :sizelimit, :debug
+
   # prepare a single entry to zip.
   #
   # * entname: a file name to be stored in zip file
@@ -42,6 +105,7 @@ class ZipRubyApp::ZipTiny
     
     if source.is_a?(Array)
       content = source.join("").force_encoding("ASCII-8bit")
+      source = [content]
     else
       handle = nil
       handle_close = false
@@ -73,11 +137,13 @@ class ZipRubyApp::ZipTiny
     end
 
     modtime = Time.now if modtime == nil
-    entry = {
+    entry = CompressEntry.new(
       fname: entname,
       content: content,
-      mtime: modtime
-    }
+      mtime: modtime,
+      source: source,
+      parent: self
+    )
     @entries << entry
     @entries_hash[entname] = entry
   end
@@ -111,46 +177,6 @@ class ZipRubyApp::ZipTiny
 
   def self.prepare_zip(l)
     return self.new(l)
-  end
-
-  # Compress a single entry for zip.  Internally/automatically called
-  # from make_zip.
-  #
-  #  * ent: an entry, created by prepare_zip or prepare_zip_entry.
-  #  * compressflag: an integer 0--9, corresponding to zlib/zip flags.
-  #
-  # The argument ent is updated to contain compressed data stream.
-  def compress_entry(ent, compressflag)
-    return ent if ent.member?(:cdata)
-
-    content = ent[:content]
-    cdata = content
-
-    raise "#{ent[:fname]}: too large data" if content.length > @sizelimit
-
-    compressmethod, versionrequired, flags = 0, 10, 0
-
-    if (compressflag >= 1)
-      zstream = Zlib::Deflate.new(compressflag, -15)
-      cdata = zstream.deflate(content, Zlib::FINISH).force_encoding("ASCII-8bit")
-      zstream.close
-      compressmethod, versionrequired = 8, 20
-      flags = (compressflag > 7) ? 1 : (compressflag > 2) ? 0 : 2
-    end
-
-    $stderr.printf("compressing %s: %d -> %d\n", ent[:fname], content.length, cdata.length) if @debug
-    # undo compression if it is not shrunk
-    if content.length <= cdata.length
-      cdata = content
-      compressmethod, versionrequired, flags = 0, 10, 0
-    end
-
-    raise "error: #{ent[:fname]}: too large data after compression" if cdata.length > @sizelimit
-
-    ent[:cdata] = cdata
-    ent[:compressmethod] = compressmethod
-    ent[:versionrequired] = versionrequired
-    ent[:flags] = flags
   end
 
   def each_entry(&proc)
@@ -196,18 +222,16 @@ class ZipRubyApp::ZipTiny
     @entries.each{ |e|
       pos = out.pos + offset
 
-      name = e[:fname]
-      content = e[:content]
-      modtime = e[:mtime]
+      name = e.fname
+      content = e.content
+      modtime = e.mtime
 
       crc = Zlib::crc32(content)
 
-      compress_entry(e, compress)
+      e.compress(compress)
 
-      cdata = e[:cdata]
-      compressmethod = e[:compressmethod]
-      versionrequired = e[:versionrequired]
-      flags = e[:flags]
+      cdata = e.cdata
+      (compressmethod, versionrequired, flags) = e.zipflags
 
       name = name.dup.force_encoding("ASCII-8bit")
 
