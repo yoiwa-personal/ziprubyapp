@@ -287,11 +287,14 @@ class ZipRubyApp::ZipTiny
     out.close
     return out.string
   end
+
+  def self.make_zip(*args, **kwargs)
+    self.new(args).make_zip(**kwargs)
+  end
 end
 
 if __FILE__ == $0
-  z = ZipRubyApp::ZipTiny.new([["1", ["1", "1"]],
-                               "zip_tiny.rb"]).make_zip()
+  z = ZipRubyApp::ZipTiny.make_zip(["1", ["1", "1"]],
+                                   "zip_tiny.rb")
   print z
 end
-

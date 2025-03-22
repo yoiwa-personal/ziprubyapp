@@ -75,7 +75,7 @@ if (ARGV.length == 0)
   exit(2)
 end
 
-sfx = ZipRubyApp::SFXGenerate::new().process(
+sfx = ZipRubyApp::SFXGenerate::ziprubyapp(
   ARGV,
   out: out,
   mainopt: mainopt,

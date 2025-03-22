@@ -38,6 +38,101 @@ class ZipRubyApp::SFXGenerate
 
   def die str; $stderr.print("Error: #{str}\n"); exit 1; end
 
+  # Mid-level interfaces
+
+  # Create an instance for SFXGenerate
+  #  * sizelimit: a safety limit for member size, default to 64MB.
+  def initialize(sizelimit: (64 * 1048576))
+    @zip = ZipRubyApp::ZipTiny::new
+
+    @possible_out = nil
+    @main = nil
+    dir = nil
+    @maintype = 0
+    @includedir = []
+    @sizelimit = sizelimit
+  end
+
+  # Add an entry to sfx.
+  #  Typically, called as add_entry("name in sfx", "filename on filesystem").
+  #  See ZipTiny::add_entry for argument details.
+  #
+  def add_entry(ename, *args)
+    @zip.add_entry(ename, *args)
+  end
+
+  # Generate an sfx, using entries added by add_entry.
+  #   * out: filename of the sfx output
+  #   * main: the name of the main script member, as named in the sfx.
+  #   * compression: compression strength, 0 to 9 as in gzip or zlib.
+  #   * textarchive: use text-based alternative format for sfx.
+  #   * simulate_data: to simulate DATA stream, if contained in the main script.
+  def generate(out:,
+               main:,
+               compression: 0,
+               base64: false,
+               textarchive: false,
+               simulate_data: false
+              )
+    if not @zip.include?(main)
+      die "no main file #{main.inspect} will be contained in archive"
+    end
+
+    @zip.each_entry {|f|
+      entname = f.fname
+      origname = f.source
+      printf("%s <- %s\n", entname, origname)
+    } if @interactive
+
+    die "bad --compress=#{compression}" unless 0 <= compression && compression <= 9
+
+    @zip.__setopt(sizelimit: @sizelimit, debug: @@debug)
+
+    # consult main script for top comments and she-bang
+
+    # uses data structure internal to ZipTiny
+    mainent = @zip.find_entry(main)
+
+    shebang = ''
+
+    StringIO::open(mainent.content, "rb:ASCII-8bit") { |mainf|
+      mainf.each_line { |line|
+        break unless /^#/ =~ line
+        shebang << line
+      }
+    }
+
+    mode = 0o666
+    mode = 0o777 if (/\A#!/ =~ shebang)
+
+    if simulate_data
+      require 'ripper'
+
+      StringIO::open(mainent.content, "rb:ASCII-8bit") { |mainf|
+        # depending on that ripper stops reading at __END__ token
+        lex = Ripper.lex(mainf)
+        if lex[-1] and lex[-1][1] == :on___end__
+          simulate_data = mainf.pos
+        else
+          simulate_data = false
+        end
+      }
+    end
+
+    # no quotation support for ruby (not needed)
+
+    headerdata, zipdata = create_sfx(shebang, main, textarchive, compression, base64, simulate_data)
+
+    print "writing to #{out}\n" if @interactive
+
+    open(out, "wb", mode) { |of|
+      of.write headerdata
+      of.write zipdata
+    }
+  end
+
+  # High-level (command-line level) interface, support routines
+
   def canonicalize_filename(fname, fixedprefix)
     fname = fname.gsub(%r(/+), "/")
 
@@ -86,7 +181,7 @@ class ZipRubyApp::SFXGenerate
     return [fname, ename]
   end
 
-  def add_file(fname, fixedprefix)
+  def cmd_add_file(fname, fixedprefix)
     # behavior of main mode:
     #  1: no op; do later
     #  2: add if first
@@ -109,14 +204,14 @@ class ZipRubyApp::SFXGenerate
         @main = ename if @main == nil
         @possible_out = ename if @possible_out == nil
       end
-      @zip.add_entry(ename, fname)
+      add_entry(ename, fname)
     end
   end
 
-  def add_dir(fname, prefix)
+  def cmd_add_dir(fname, prefix)
     Find.find(fname) {|f|
       unless f =~ %r((\A|\/)\.[^\/]*\z)
-        add_file(f, prefix) if f =~ /\.rb\z/
+        cmd_add_file(f, prefix) if f =~ /\.rb\z/
       end
     }
   end
@@ -124,34 +219,23 @@ class ZipRubyApp::SFXGenerate
   # generate an SFX archive for Ruby.
   #
   # Arguments are:
-  #   Case 1. highlevel (shell-level) interface:
   #     argv is a list of file,
   #     other options correspond to command line options.
-  #   Case 2. mid-level (library-level) interface:
-  #     argv is list of Arrays ["name in zipfile", "name in filesystem"] or
-  #     an argument list to ZipTiny::add_entry.
-  #     Mandatory to specify: argv out, mainopt.
-  #     Leave as is: includedir, searchincludedir, trimlibname.
-  #     Optional: compression, base64, textarchive, simulate_data, sizelimit.
-  #
-  def process(argv,
+
+  def self.ziprubyapp(argv,
+                           sizelimit: (64 * 1048576),
+                           **kw)
+    self.new(sizelimit: sizelimit).command_process(argv, **kw)
+  end
+
+  def command_process(argv,
               out: nil,
               mainopt: nil,
-              compression: 0,
-              base64: false,
-              textarchive: false,
-              simulate_data: false,
               includedir: [],
               searchincludedir: false,
               trimlibname: false,
-              sizelimit: (64 * 1048576))
-
-    @possible_out = nil
-    @main = nil
-    dir = nil
-    @maintype = 0
+              **kw)
     @includedir = includedir
-    @sizelimit = sizelimit
     @trimlibname = trimlibname
     @interactive = true
 
@@ -163,8 +247,6 @@ class ZipRubyApp::SFXGenerate
     #     -> specified files included, first argument must be .rb file, output first.plz
     #   type 3: main file specified
     #     -> specified files included, main file must be included, output main.plz
-
-    @zip = ZipRubyApp::ZipTiny::new
 
     @includedir.map! { |f|
       f.sub(/\/+\z/, "")
@@ -193,34 +275,27 @@ class ZipRubyApp::SFXGenerate
     end
 
     argv.each { |f|
-      if f.is_a?(Array)
-        # direct use as library
-        @interactive = false
-        @zip.add_entry(*f)
+      foundprefix = nil
+      unless File.exist?(f)
+        if searchincludedir
+          @includedir.each { |l|
+            ff = "#{l}/#{f}"
+            if File.exist?(ff)
+              foundprefix = l
+              f = ff
+              break
+            end
+          }
+        end
+      end
+      if File.file?(f)
+        cmd_add_file(f, foundprefix)
+      elsif File.directory?(f)
+        f = f.sub(/\/+\z/, "")
+        cmd_add_dir(f, foundprefix)
       else
-        # command line
-        foundprefix = nil
-        unless File.exist?(f)
-          if searchincludedir
-            @includedir.each { |l|
-              ff = "#{l}/#{f}"
-              if File.exist?(ff)
-                foundprefix = l
-                f = ff
-                break
-              end
-            }
-          end
-        end
-        if File.file?(f)
-          add_file(f, foundprefix)
-        elsif File.directory?(f)
-          f = f.sub(/\/+\z/, "")
-          add_dir(f, foundprefix)
-        else
-          die "file not found: #{f}" unless File.exist?(f)
-          die "file unknown type: #{f}"
-        end
+        die "file not found: #{f}" unless File.exist?(f)
+        die "file unknown type: #{f}"
       end
     }
 
@@ -248,64 +323,12 @@ class ZipRubyApp::SFXGenerate
       print "using #{@main} as main script\n" if @interactive
     end
 
-    if not @zip.include?(@main)
-      die "no main file #{@main.inspect} will be contained in archive"
-    end
-
-    @zip.each_entry {|f|
-      entname = f.fname
-      origname = f.source
-      printf("%s <- %s\n", entname, origname)
-    } if @interactive
-
-    die "bad --compress=#{compression}" unless 0 <= compression && compression <= 9
-
-    @zip.__setopt(sizelimit: @sizelimit, debug: @@debug)
-
-    # consult main script for top comments and she-bang
-
-    # uses data structure internal to ZipTiny
-    mainent = @zip.find_entry(@main)
-
-    shebang = ''
-
-    StringIO::open(mainent.content, "rb:ASCII-8bit") { |mainf|
-      mainf.each_line { |line|
-        break unless /^#/ =~ line
-        shebang << line
-      }
-    }
-
-    mode = 0o666
-    mode = 0o777 if (/\A#!/ =~ shebang)
-
-    if simulate_data
-      require 'ripper'
-
-      StringIO::open(mainent.content, "rb:ASCII-8bit") { |mainf|
-        # depending on that ripper stops reading at __END__ token
-        lex = Ripper.lex(mainf)
-        if lex[-1] and lex[-1][1] == :on___end__
-          simulate_data = mainf.pos
-        else
-          simulate_data = false
-        end
-      }
-    end
-
-    # no quotation support for ruby (not needed)
-
-    headerdata, zipdata = create_sfx(shebang, textarchive, compression, base64, simulate_data)
-
-    print "writing to #{out}\n" if @interactive
-
-    open(out, "wb", mode) { |of|
-      of.write headerdata
-      of.write zipdata
-    }
+    generate(out: out, main: @main, **kw)
   end
 
-  def create_sfx(shebang, textarchive, compression, base64, simulate_data)
+  # Low-level routines
+
+  def create_sfx(shebang, main, textarchive, compression, base64, simulate_data)
     $stderr.print("create_sfx: b64 #{base64}, simdata #{simulate_data}\n") if @@debug
 
     quote = nil
@@ -316,7 +339,7 @@ class ZipRubyApp::SFXGenerate
 
     # prepare launching script
 
-    config = {main: @main, dequote: quote, simulate_data: simulate_data, sizelimit: @sizelimit}
+    config = {main: main, dequote: quote, simulate_data: simulate_data, sizelimit: @sizelimit}
     features = ["MAIN"] +
                (textarchive ? ["TEXTARCHIVE"] : ["ZIPARCHIVE"]) +
                (quote ? ["QUOTE"] : []) +
@@ -576,11 +599,14 @@ end
 
 if __FILE__ == $0
   # test library-level interface
-  ZipRubyApp::SFXGenerate.new().process(
-    [["test.rb", "main.rb"],
-     ["sfx_generate.rb", "./sfx_generate.rb"],
-     ["zip_tiny.rb", "./zip_tiny.rb"]],
+  s = ZipRubyApp::SFXGenerate.new()
+  [["test.rb", "main.rb"],
+   ["sfx_generate.rb", "./sfx_generate.rb"],
+   ["zip_tiny.rb", "./zip_tiny.rb"]].each { |f|
+    s.add_entry(*f)
+  }
+  s.generate(
     out:"test.rbz",
-    mainopt:"test.rb",
+    main:"test.rb",
     compression: 6)
 end
