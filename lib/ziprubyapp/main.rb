@@ -45,11 +45,16 @@ trimlibname = 1
 
 sizelimit = 64 * 1048576
 
+debug = false
+
 opt = OptionParser.new
 
 opt.banner += " {directory | files ...}"
 
-opt.on('-C', '--compress[=VAL]', Integer, "compression level") { |v| compression = (v == nil) ? 9 : v }
+opt.on('-C', '--compress[=VAL]', Integer, "compression level (0 to 9)") { |v|
+  compression = (v == nil) ? 9 : v;
+  raise OptionParser::ParseError.new unless 0 <= compression && compression <= 9
+}
 opt.on('-o FILE', '--output=FILE', "output file") { |v| out = v }
 opt.on('-m MOD', '--main=MOD', "name of main module to be loaded") { |v| mainopt = v }
 opt.on('-T', '--text-archive', "use text-based archive format") { |v| textarchive = true }
@@ -60,6 +65,7 @@ opt.on('--[no-]search-includedir', "search files within -I directories (default 
 opt.on('--[no-]trim-includedir', "shorten file names for files in -I directories (default true)") { |v| trimlibname = v }
 opt.on('--sizelimit=INT', Integer, "maximal file size to process (for both pack and unpack)") { |v| sizelimit = (v || 64 * 1048576) }
 opt.on('--random-seed=INT', Integer, "seed for the pseudorandom number") { |v| srand v }
+opt.on('--debug[=INT]', Integer) { |v| debug = (v == nil ? 1 : v == 0 ? false : v) }
 opt.version=VERSION
 
 begin
@@ -75,6 +81,13 @@ if (ARGV.length == 0)
   exit(2)
 end
 
+progout_fh = $stdout
+
+if out == '-'
+  out = $stdout
+  progout_fh = $stderr
+end
+
 begin
   sfx = ZipRubyApp::SFXGenerate::ziprubyapp(
     ARGV,
@@ -87,7 +100,10 @@ begin
     includedir: includedir,
     searchincludedir: searchincludedir,
     trimlibname: trimlibname,
-    sizelimit: sizelimit )
+    sizelimit: sizelimit,
+    debug: debug,
+    progout_fh: progout_fh,
+  )
 rescue ZipRubyApp::CommandError => e
   $stderr.print("Error: #{e.message}\n")
   exit 1

@@ -43,7 +43,9 @@ class ZipRubyApp::ZipTiny
         zipflags = [8, 20, (compressflag > 7) ? 1 : (compressflag > 2) ? 0 : 2]
       end
 
-      $stderr.printf("compressing %s: %d -> %d\n", ent[:fname], content.length, cdata.length) if @debug
+      if @parent && @parent.debug
+        @parent.debug_fh.printf("compressing %s: %d -> %d\n", @fname, content.length, cdata.length)
+      end
       # undo compression if it is not shrunk
       if content.length <= cdata.length
         cdata = content
@@ -67,26 +69,30 @@ class ZipRubyApp::ZipTiny
 
   @@sizelimit = 64 * 1048576
   @@debug = false
+  @@debug_fh = $stderr
 
   def initialize(entries = [])
     @entries = []
     @entries_hash = {}
     @sizelimit = @@sizelimit
     @debug = @@debug
+    @debug_fh = @@debug_fh
     add_entries(entries)
   end
 
-  def __setopt(sizelimit: nil, debug: false)
-    @sizelimit = sizelimit || 64 * 1048576
+  def __setopt(sizelimit: nil, debug: false, debug_fh: nil)
+    @sizelimit = sizelimit || @@sizelimit
     @debug = debug
+    @debug_fh = debug_fh || @@debug_fh
   end
 
-  def self.__setopt(sizelimit: nil, debug: false)
+  def self.__setopt(sizelimit: nil, debug: false, debug_fh: $stderr)
     @@sizelimit = sizelimit || 64 * 1048576
     @@debug = debug
+    @@debug_fh = debug_fh
   end
 
-  attr_reader :sizelimit, :debug
+  attr_reader :sizelimit, :debug, :debug_fh
 
   # prepare a single entry to zip.
   #
@@ -116,6 +122,8 @@ class ZipRubyApp::ZipTiny
           handle = File.open(source, "r")
         elsif source.is_a?(IO)
           handle = source
+        else
+          raise "#{source}: unknown type of source"
         end
         content = handle.read(@sizelimit)
         content = "" if content == nil
@@ -197,8 +205,6 @@ class ZipRubyApp::ZipTiny
 
   # Generate a zip archive data on-memory.
   #
-  # = a positional argument
-  #  * Array entries: content list to be stored in archive, prepared by prepare_zip.
   # = keyword arguments
   #  * Integer compress: strength of zlib/zip compression, in integer 0--9
   #  * String header: a data prepended to archive.

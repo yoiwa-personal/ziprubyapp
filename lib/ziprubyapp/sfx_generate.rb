@@ -44,9 +44,8 @@ class ZipRubyApp::SFXGenerate
 
   # Create an instance for SFXGenerate
   #  * sizelimit: a safety limit for member size, default to 64MB.
-  def initialize(sizelimit: nil)
+  def initialize(sizelimit: nil, debug: @@debug, progout_fh: $stdout, debug_fh: $stderr)
     @zip = ZipRubyApp::ZipTiny::new
-    @zip.__setopt(sizelimit: @sizelimit, debug: @@debug)
 
     @possible_out = nil
     @main = nil
@@ -54,6 +53,12 @@ class ZipRubyApp::SFXGenerate
     @maintype = 0
     @includedir = []
     @sizelimit = sizelimit || 64 * 1048576
+    @debug = debug
+    @progout_fh = progout_fh
+    @debug_fh = debug_fh
+    @interactive = false
+
+    @zip.__setopt(sizelimit: @sizelimit, debug: @debug, debug_fh: @debug_fh)
   end
 
   # Add an entry to sfx.
@@ -84,8 +89,8 @@ class ZipRubyApp::SFXGenerate
     @zip.each_entry {|f|
       entname = f.fname
       origname = f.source
-      printf("%s <- %s\n", entname, origname)
-    } if @interactive
+      @progout_fh.printf("%s <- %s\n", entname, origname)
+    } if @interactive && @progout_fh
 
     die("bad compression strength #{compression}") unless 0 <= compression && compression <= 9
 
@@ -114,8 +119,10 @@ class ZipRubyApp::SFXGenerate
         lex = Ripper.lex(mainf)
         if lex[-1] and lex[-1][1] == :on___end__
           simulate_data = mainf.pos
+          @debug_fh.print("simulate_data: __END__ found at position #{simulate_data}\n") if @debug
         else
           simulate_data = false
+          @debug_fh.print("simulate_data: __END__ NOT found\n") if @debug
         end
       }
     end
@@ -124,12 +131,17 @@ class ZipRubyApp::SFXGenerate
 
     headerdata, zipdata = create_sfx(shebang, main, textarchive, compression, base64, simulate_data)
 
-    print "writing to #{out}\n" if @interactive
+    if (out.is_a?(String))
+      print "writing to #{out}\n" if @interactive && @progout_fh
 
-    open(out, "wb", mode) { |of|
-      of.write headerdata
-      of.write zipdata
-    }
+      open(out, "wb", mode) { |of|
+        of.write headerdata
+        of.write zipdata
+      }
+    else
+      out.write headerdata
+      out.write zipdata
+    end
   end
 
   # High-level (command-line level) interface, support routines
@@ -224,11 +236,15 @@ class ZipRubyApp::SFXGenerate
   #     other options correspond to command line options.
   def self.ziprubyapp(argv,
                       sizelimit: nil,
+                      progout_fh: $stdout,
+                      debug: false,
+                      debug_fh: $stderr,
                       **kw)
-    self.new(sizelimit: sizelimit).command_process(argv, **kw)
+    self.new(sizelimit: sizelimit, progout_fh: progout_fh,
+             debug: debug, debug_fh: debug_fh).ziprubyapp(argv, **kw)
   end
 
-  def command_process(argv,
+  def ziprubyapp(argv,
               out: nil,
               mainopt: nil,
               includedir: [],
@@ -316,11 +332,11 @@ class ZipRubyApp::SFXGenerate
       end
       out = File.basename @possible_out
       out = out.sub(/(\.rb)?\z/, '.rbz')
-      print "output is set to: #{out}\n" if @interactive
+      @progout_fh.print "output is set to: #{out}\n" if @interactive && @progout_fh
     end
 
     if @maintype != 3 || mainopt != @main
-      print "using #{@main} as main script\n" if @interactive
+      @progout_fh.print "using #{@main} as main script\n" if @interactive && @progout_fh
     end
 
     generate(out: out, main: @main, **kw)
@@ -329,7 +345,7 @@ class ZipRubyApp::SFXGenerate
   # Low-level routines
 
   def create_sfx(shebang, main, textarchive, compression, base64, simulate_data)
-    $stderr.print("create_sfx: b64 #{base64}, simdata #{simulate_data}\n") if @@debug
+    @debug_fh.print("create_sfx: b64 #{base64}, simdata #{simulate_data}\n") if @debug
 
     quote = nil
     if (base64)
