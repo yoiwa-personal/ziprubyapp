@@ -13,14 +13,14 @@ Options:
   \-m, \-\-main=MOD                   name of main module to be loaded
   \-T, \-\-text\-archive               use text\-based archive format
   \-B, \-\-base64                     encode archive with BASE64
-  \-D, \-\-provide\-data\-handle        provide DATA pseudo filehandle
+  \-D, \-\-provide\-data\-handle        provide DATA pseudo file\-handle
   \-I, \-\-includedir=DIR             library path to include
       \-\-[no\-]search\-includedir     search files within \-I directories
       \-\-[no\-]trim\-includedir       shorten file names for files in \-I directories
   \-\-help                           show help
 .fi
 .SH "DESCRIPTION"
-This program bundles several Ruby module files and wraps them as an "executable" zip archive\. An output file can be invoked as a Ruby script, or (if a source file contains a "\fB#!\fR" line) as a directly executable command\. Also, it can be handled by (almost every) zip archiver as an "sfx" file\.
+This program bundles several Ruby module files and wraps them as an "executable" zip archive\. An output file can be invoked as a Ruby script, or (if a source file contains a "\fB#!\fR" line) as a directly executable command\. Also, it can be handled by (almost every) zip archivers as an "sfx" file\.
 .P
 Inside Ruby scripts, the language's \fBrequire\fR facility is extended so that The program can simply use \fBrequire\fR or \fBrequire\-relative\fR statements to load the contained modules, without modifying the \fB$:\fR variable\.
 .SH "OPTIONS"
@@ -38,13 +38,13 @@ Otherwise, all files specified in the argument are included\.
 .IP "\[ci]" 4
 \-\-main, \-m
 .IP
-Specify the main module which is automatically loaded\. Also, a "she\-bang" line and continuous comment lines are copied from the main module to the output\.
+specifies the main module which is automatically loaded\. Also, a "she\-bang" line and continuous comment lines are copied from the main module to the output\.
 .IP
 If a directory is specified in the argument, and there is a \fB__main__\.rb\fR file on top of the directory, that file will be used\. Otherwise, the main module must be explicitly specified\.
 .IP "\[ci]" 4
 \-\-output, \-o
 .IP
-Specify the name of the output file\.
+specifies the name of the output file\.
 .IP
 If omitted, either the name of the source directory or the base name of the main module is taken, with a postfix '\fB\.rbz\fR' is appended\.
 .IP
@@ -52,15 +52,15 @@ It is always safer to specify the output file\.
 .IP "\[ci]" 4
 \-\-includedir, \-I
 .IP
-Specify the locations to search input files, in addition to the current directory\. If this option is specified multiple times, the files will be searched in order of the specifications\.
+specifies locations to search input files, in addition to the current directory\. If this option is specified multiple times, the files will be searched in order of specifications\.
 .IP
-This option will have two kinds of separate effect; if '\fB\-Ilib File\.pm\fR is speficied in the command line, as an example:
+This option will have two separate effects; when '\fB\-Ilib File\.pm\fR' is specified in the command line, as an example:
 .IP "\[ci]" 4
-the command will include '\fBlib/File\.pm\fR' to the archive, if '\fBFile\.pm\fR' does not exist\. This behavior can be disabled by specifing '\fB\-\-no\-search\-includedir\fR'\.
+the command will include '\fBlib/File\.pm\fR' to the archive, if '\fBFile\.pm\fR' does not exist\. This behavior can be disabled by specifying '\fB\-\-no\-search\-includedir\fR'\.
 .IP "\[ci]" 4
-the file '\fBlib/File\.pm\fR' will be included to the archive as '\fBFile\.pm\fR', triming the library part of the name\. This happens either when the file is speficied explicitly or through C\fI\-I\fR option\. This behavior can be disabled by specifing '\fB\-\-no\-trim\-includedir\fR'\.
+the file '\fBlib/File\.pm\fR' will be included to the archive as '\fBFile\.pm\fR', trimming the library part of the name\. This happens either when the file is specified explicitly or through C\fI\-I\fR option\. This behavior can be disabled by specifying '\fB\-\-no\-trim\-includedir\fR'\.
 .IP
-If two or more files will share the same name after this triming, it will be an error and rejected\.
+If two or more files will share the same name after this trimming, it will be rejected as an error\.
 .IP "" 0
 
 .IP "" 0
@@ -68,7 +68,7 @@ If two or more files will share the same name after this triming, it will be an 
 .IP "\[ci]" 4
 \-\-compress, \-C
 .IP
-Specify the compression level for the Deflate algorithm\.
+specifies the compression level for the Deflate algorithm\.
 .IP
 If \fB\-C\fR is specified without a digit, the highest level 9 is set\.
 .IP
@@ -94,11 +94,19 @@ The option combination with \fB\-B\fR is possible, but it is not very meaningful
 .IP "\[ci]" 4
 \-\-provide\-data\-handle, \-D
 .IP
-Simulate the DATA file handle for the main module\. If enabled, it will set \fBDATA\fR constant to a simulated pseudo file handle, providing the script data after \fB__END__\fR token\.
+specifies to simulate the DATA file handle for the main module\. If enabled, it will set \fBDATA\fR constant to a simulated pseudo file handle, providing the script data after \fB__END__\fR token\.
 .IP
 If the main module does not contain the token, it is ignored\.
 .IP
 It is implemented with StringIO in Ruby\. For both performance and simplicity, the relative position of the \fB__END__\fR token in the input is remembered when the script is generated\. If you replace the main module by zip archivers, the data will be broken\.
+.IP "" 0
+.SS "OTHER OPTIONS"
+.IP "\[ci]" 4
+\-\-random\-seed
+.IP
+specifies a seed integer for pseudorandom number generators\. Some features (e\.g\. \fB\-\-text\-archive\fR) use random numbers to generate a unique byte sequence in the archive\. This makes the output archives for the same input set to differ time\-to\-time\. Specifying a random seed will make output somewhat deterministic for the same input\. It is not a strong guarantee; the output may still differ by small change of inputs or even small environmental changes such as use of different machines or system library updates\. Main expected use of this option is to put the archive outputs to version control systems such as git or subversion\.
+.IP
+In Ruby, seeds will be an 128\-bit integer\.
 .IP "" 0
 .SH "APIS"
 There are currently no APIs visible to user scripts except import hooks\. Module \fBZipRubyApp\fR is provided in the zipped script, so if you need to change some behavior upon packaging, something like
@@ -111,30 +119,34 @@ end
 .IP "" 0
 .P
 can be used\.
+.P
+In Ruby, \fBrequire_relative\fR is useful to load the modules in the same directory as the script, and it also works well with this tool\.
 .SH "LIMITATIONS"
 .IP "\[ci]" 4
-Only pure Ruby scripts or modules can be loaded from zip archive\. Dynamic loading (*\.so, *\.dll) will not be available\.
+Only pure Ruby scripts or modules can be loaded from zip archives\. Dynamic loading (*\.so, *\.dll) will not be available\.
 .IP "\[ci]" 4
 \fB__FILE__\fR tokens in the archived file will have virtual values of "\fIarchivename\fR/\fImodulename\fR", which does not exist in the real file system\. This also holds for the "main script" to be referred to\. It means that the common technique for making a "dual\-use" module/script "\fBif __FILE__ == $0\fR" will not work\. Instead, please provide a short entry script as a main script\.
 .IP "\[ci]" 4
 For compactness (and minimal dependency only to core modules), an embedded parser for zip archives is extremely simple\. It can not parse archives with any advanced features or partially\-broken archives\. If you modify the packed archive using usual zip archivers, be aware of that\.
 .IP "\[ci]" 4
 All files are decoded into the memory at the beginning of the program execution\. It is not wise to include unneeded files into the archive\.
+.IP "\[ci]" 4
+Module loading is simulated using \fBKernel\.eval\fR\. Also, \fBKernel\.require\fR is overridden to extend the module search behavior\. Although carefully implemented, there may be unknown side\-effects, or it may be broken in future versions of Ruby\. Unlike Python or Perl, Ruby does not provide facilities to extend module searching/loading behavior, unfortunately\.
 .IP "" 0
 .SH "IMPLEMENTATION"
-A zip archive of module files are stored in the \fBDATA\fR section\. A minimal parser for Zip archives is embedded to the output script, and it will extract the source codes of all modules to an on\-memory storage at the start\-up\. The functions \fBrequire\fR and \fBrequire_relative\fR in the Kernel module is extended load those modules\.
+A zip archive of module files are stored in the \fBDATA\fR section\. A minimal parser for Zip archives is embedded to the output script, and it will extract the source codes of all modules to an on\-memory storage at the start\-up\. The functions \fBrequire\fR and \fBrequire_relative\fR in the Kernel module is extended to load those modules\.
 .SH "DEPENDENCIES"
 Zipped scripts generated by this command will not depend on any external modules, except those included in the core modules of Ruby distributions as of version 2\.3\.1\.
-.P
-This command itself is depending on the \fBzip\fR command from Info\-Zip\. It must be available in the command search path\.
 .SH "REFERENCE"
 .IP "\[ci]" 4
 Homepage \fIhttps://www\.github\.com/yoiwa\-personal/ziprubyapp\fR
 .IP "\[ci]" 4
+zipperlapp \fIhttps://www\.github\.com/yoiwa\-personal/zipperlapp\fR
+.IP "\[ci]" 4
 Python's "zipapp" implementation \fIhttps://docs\.python\.org/en/3/library/zipapp\.html\fR
 .IP "" 0
 .SH "AUTHOR/COPYRIGHT"
-Copyright 2019 Yutaka OIWA \fIyutaka@oiwa\.jp\fR\.
+Copyright 2019\-2025 Yutaka OIWA \fIyutaka@oiwa\.jp\fR\.
 .P
 Licensed under the Apache License, Version 2\.0 (the "License"); you may not use this file except in compliance with the License\. You may obtain a copy of the License at
 .P

@@ -23,7 +23,7 @@ This program bundles several Ruby module files and wraps them as an
 "executable" zip archive.  An output file can be invoked as a Ruby
 script, or (if a source file contains a "`#!`" line) as a directly
 executable command.  Also, it can be handled by (almost every) zip
-archiver as an "sfx" file.
+archivers as an "sfx" file.
 
 Inside Ruby scripts, the language's `require` facility is extended so
 that The program can simply use `require` or `require-relative`
@@ -48,7 +48,7 @@ statements to load the contained modules, without modifying the
 
 * --main, -m
 
-  Specify the main module which is automatically loaded.  Also, a
+  specifies the main module which is automatically loaded.  Also, a
   "she-bang" line and continuous comment lines are copied from the main
   module to the output.
 
@@ -58,7 +58,7 @@ statements to load the contained modules, without modifying the
 
 * --output, -o
 
-  Specify the name of the output file.
+  specifies the name of the output file.
 
   If omitted, either the name of the source directory or the base name
   of the main module is taken, with a postfix '`.rbz`' is appended.
@@ -67,12 +67,12 @@ statements to load the contained modules, without modifying the
   
 * --includedir, -I
 
-  Specify the locations to search input files, in addition to the current
+  specifies locations to search input files, in addition to the current
   directory.
   If this option is specified multiple times, the files will be searched
-  in order of the specifications.
+  in order of specifications.
 
-  This option will have two kinds of separate effect; if '`-Ilib File.pm`'
+  This option will have two separate effects; when '`-Ilib File.pm`'
   is specified in the command line, as an example:
 
   * the command will include '`lib/File.pm`' to the archive, if
@@ -86,13 +86,13 @@ statements to load the contained modules, without modifying the
     '`--no-trim-includedir`'.
 
     If two or more files will share the same name after this trimming,
-    it will be an error and rejected.
+    it will be rejected as an error.
 
 ### ARCHIVE OPTIONS
 
 * --compress, -C
 
-  Specify the compression level for the Deflate algorithm.
+  specifies the compression level for the Deflate algorithm.
 
   If `-C` is specified without a digit, the highest level 9 is set.
 
@@ -134,7 +134,7 @@ statements to load the contained modules, without modifying the
 
 * --provide-data-handle, -D
 
-  Simulate the DATA file handle for the main module.
+  specifies to simulate the DATA file handle for the main module.
   If enabled, it will set `DATA` constant to a simulated pseudo
   file handle, providing the script data after `__END__` token.
 
@@ -149,7 +149,7 @@ statements to load the contained modules, without modifying the
 
 * --random-seed
 
-  Specify a seed integer for pseudorandom number generators.  Some
+  specifies a seed integer for pseudorandom number generators.  Some
   features (e.g. `--text-archive`) use random numbers to generate a
   unique byte sequence in the archive.  This makes the output archives
   for the same input set to differ time-to-time.  Specifying a random
@@ -180,7 +180,7 @@ same directory as the script, and it also works well with this tool.
 ## LIMITATIONS
 
 * Only pure Ruby scripts or modules can be loaded from zip
-  archive. Dynamic loading (*.so, *.dll) will not be available.
+  archives. Dynamic loading (*.so, *.dll) will not be available.
 
 * `__FILE__` tokens in the archived file will have virtual values
   of "_archivename_/_modulename_", which does not exist in the real
@@ -198,6 +198,13 @@ same directory as the script, and it also works well with this tool.
 * All files are decoded into the memory at the beginning of the
   program execution.  It is not wise to include unneeded files into
   the archive.
+
+* Module loading is simulated using `Kernel.eval`.  Also,
+  `Kernel.require` is overridden to extend the module search behavior.
+  Although carefully implemented, there may be unknown side-effects,
+  or it may be broken in future versions of Ruby.  Unlike Python or
+  Perl, Ruby does not provide facilities to extend module
+  searching/loading behavior, unfortunately.
 
 ## IMPLEMENTATION
 

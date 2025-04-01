@@ -87,7 +87,7 @@ Options:
   -m, --main=MOD                   name of main module to be loaded
   -T, --text-archive               use text-based archive format
   -B, --base64                     encode archive with BASE64
-  -D, --provide-data-handle        provide DATA pseudo filehandle
+  -D, --provide-data-handle        provide DATA pseudo file-handle
   -I, --includedir=DIR             library path to include
       --[no-]search-includedir     search files within -I directories
       --[no-]trim-includedir       shorten file names for files in -I directories
@@ -100,7 +100,7 @@ Options:
 "executable" zip archive.  An output file can be invoked as a Ruby
 script, or (if a source file contains a "<code>#!</code>" line) as a directly
 executable command.  Also, it can be handled by (almost every) zip
-archiver as an "sfx" file.</p>
+archivers as an "sfx" file.</p>
 
 <p>Inside Ruby scripts, the language's <code>require</code> facility is extended so
 that The program can simply use <code>require</code> or <code>require-relative</code>
@@ -132,7 +132,7 @@ directory name itself is truncated.</p>
   <li>
     <p>--main, -m</p>
 
-    <p>Specify the main module which is automatically loaded.  Also, a
+    <p>specifies the main module which is automatically loaded.  Also, a
 "she-bang" line and continuous comment lines are copied from the main
 module to the output.</p>
 
@@ -143,7 +143,7 @@ main module must be explicitly specified.</p>
   <li>
     <p>--output, -o</p>
 
-    <p>Specify the name of the output file.</p>
+    <p>specifies the name of the output file.</p>
 
     <p>If omitted, either the name of the source directory or the base name
 of the main module is taken, with a postfix '<code>.rbz</code>' is appended.</p>
@@ -153,29 +153,29 @@ of the main module is taken, with a postfix '<code>.rbz</code>' is appended.</p>
   <li>
     <p>--includedir, -I</p>
 
-    <p>Specify the locations to search input files, in addition to the current
+    <p>specifies locations to search input files, in addition to the current
 directory.
 If this option is specified multiple times, the files will be searched
-in order of the specifications.</p>
+in order of specifications.</p>
 
-    <p>This option will have two kinds of separate effect; if '<code>-Ilib File.pm</code>
-is speficied in the command line, as an example:</p>
+    <p>This option will have two separate effects; when '<code>-Ilib File.pm</code>'
+is specified in the command line, as an example:</p>
 
     <ul>
       <li>
         <p>the command will include '<code>lib/File.pm</code>' to the archive, if
 '<code>File.pm</code>' does not exist.  This behavior can be disabled by
-specifing '<code>--no-search-includedir</code>'.</p>
+specifying '<code>--no-search-includedir</code>'.</p>
       </li>
       <li>
         <p>the file '<code>lib/File.pm</code>' will be included to the archive as
-'<code>File.pm</code>', triming the library part of the name. This happens
-either when the file is speficied explicitly or through C<var>-I</var>
-option.  This behavior can be disabled by specifing
+'<code>File.pm</code>', trimming the library part of the name. This happens
+either when the file is specified explicitly or through C<var>-I</var>
+option.  This behavior can be disabled by specifying
 '<code>--no-trim-includedir</code>'.</p>
 
-        <p>If two or more files will share the same name after this triming,
-it will be an error and rejected.</p>
+        <p>If two or more files will share the same name after this trimming,
+it will be rejected as an error.</p>
       </li>
     </ul>
   </li>
@@ -187,7 +187,7 @@ it will be an error and rejected.</p>
   <li>
     <p>--compress, -C</p>
 
-    <p>Specify the compression level for the Deflate algorithm.</p>
+    <p>specifies the compression level for the Deflate algorithm.</p>
 
     <p>If <code>-C</code> is specified without a digit, the highest level 9 is set.</p>
 
@@ -235,7 +235,7 @@ meaningful.</p>
   <li>
     <p>--provide-data-handle, -D</p>
 
-    <p>Simulate the DATA file handle for the main module.
+    <p>specifies to simulate the DATA file handle for the main module.
 If enabled, it will set <code>DATA</code> constant to a simulated pseudo
 file handle, providing the script data after <code>__END__</code> token.</p>
 
@@ -245,6 +245,27 @@ file handle, providing the script data after <code>__END__</code> token.</p>
 simplicity, the relative position of the <code>__END__</code> token in the
 input is remembered when the script is generated.  If you replace
 the main module by zip archivers, the data will be broken.</p>
+  </li>
+</ul>
+
+<h3 id="OTHER-OPTIONS">OTHER OPTIONS</h3>
+
+<ul>
+  <li>
+    <p>--random-seed</p>
+
+    <p>specifies a seed integer for pseudorandom number generators.  Some
+features (e.g. <code>--text-archive</code>) use random numbers to generate a
+unique byte sequence in the archive.  This makes the output archives
+for the same input set to differ time-to-time.  Specifying a random
+seed will make output somewhat deterministic for the same input.
+It is not a strong guarantee; the output may still differ by small
+change of inputs or even small environmental changes such as use of
+different machines or system library updates.
+Main expected use of this option is to put the archive outputs to
+version control systems such as git or subversion.</p>
+
+    <p>In Ruby, seeds will be an 128-bit integer.</p>
   </li>
 </ul>
 
@@ -261,12 +282,15 @@ end
 
 <p>can be used.</p>
 
+<p>In Ruby, <code>require_relative</code> is useful to load the modules in the
+same directory as the script, and it also works well with this tool.</p>
+
 <h2 id="LIMITATIONS">LIMITATIONS</h2>
 
 <ul>
   <li>
     <p>Only pure Ruby scripts or modules can be loaded from zip
-archive. Dynamic loading (*.so, *.dll) will not be available.</p>
+archives. Dynamic loading (*.so, *.dll) will not be available.</p>
   </li>
   <li>
     <p><code>__FILE__</code> tokens in the archived file will have virtual values
@@ -288,6 +312,14 @@ archivers, be aware of that.</p>
 program execution.  It is not wise to include unneeded files into
 the archive.</p>
   </li>
+  <li>
+    <p>Module loading is simulated using <code>Kernel.eval</code>.  Also,
+<code>Kernel.require</code> is overridden to extend the module search behavior.
+Although carefully implemented, there may be unknown side-effects,
+or it may be broken in future versions of Ruby.  Unlike Python or
+Perl, Ruby does not provide facilities to extend module
+searching/loading behavior, unfortunately.</p>
+  </li>
 </ul>
 
 <h2 id="IMPLEMENTATION">IMPLEMENTATION</h2>
@@ -296,16 +328,13 @@ the archive.</p>
 minimal parser for Zip archives is embedded to the output script, and
 it will extract the source codes of all modules to an on-memory
 storage at the start-up.  The functions <code>require</code> and <code>require_relative</code>
-in the Kernel module is extended load those modules.</p>
+in the Kernel module is extended to load those modules.</p>
 
 <h2 id="DEPENDENCIES">DEPENDENCIES</h2>
 
 <p>Zipped scripts generated by this command will not depend on any
 external modules, except those included in the core modules of Ruby
 distributions as of version 2.3.1.</p>
-
-<p>This command itself is depending on the <code>zip</code> command from Info-Zip.
-It must be available in the command search path.</p>
 
 <h2 id="REFERENCE">REFERENCE</h2>
 
@@ -314,13 +343,16 @@ It must be available in the command search path.</p>
     <p><a href="https://www.github.com/yoiwa-personal/ziprubyapp">Homepage</a></p>
   </li>
   <li>
+    <p><a href="https://www.github.com/yoiwa-personal/zipperlapp">zipperlapp</a></p>
+  </li>
+  <li>
     <p><a href="https://docs.python.org/en/3/library/zipapp.html">Python's "zipapp" implementation</a></p>
   </li>
 </ul>
 
 <h2 id="AUTHOR-COPYRIGHT">AUTHOR/COPYRIGHT</h2>
 
-<p>Copyright 2019 Yutaka OIWA <a href="mailto:yutaka@oiwa.jp" data-bare-link="true">yutaka@oiwa.jp</a>.</p>
+<p>Copyright 2019-2025 Yutaka OIWA <a href="mailto:yutaka@oiwa.jp" data-bare-link="true">yutaka@oiwa.jp</a>.</p>
 
 <p>Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
