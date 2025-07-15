@@ -171,10 +171,6 @@ class ZipRubyApp::SFXGenerate
 
     fname = fname.join('/')
 
-    fname = fname.sub(%r@\A(\./)+@, "")
-    while (fname.sub!(%r@/./@, "/")); end
-    while (fname.sub!(%r@(/[^/]+/../)@, "/")); end
-
     ename = fname
     if (@trimlibname)
       if fixedprefix != nil
