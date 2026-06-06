@@ -31,7 +31,15 @@ require_relative 'zip_tiny.rb'
 
 module ZipRubyApp; end
 
-class ZipRubyApp::CommandError < RuntimeError; end
+class ZipRubyApp::CommandError < RuntimeError; end #:nodoc:
+
+# = ZipRubyApp::SFXGenerate: a generator for pure-ruby SFX archives.
+#
+# This module creates a ruby script with simple zip archive embedded,
+# which can be used as a self-contained executable.
+#
+# There are two sets of interfaces: middle level (library level) and
+# command level.
 
 class ZipRubyApp::SFXGenerate
   VERSION = "2.0.1"
@@ -40,7 +48,7 @@ class ZipRubyApp::SFXGenerate
 
   def die str; raise ZipRubyApp::CommandError.new(str); end
 
-  # Mid-level interfaces
+  #= Mid-level interfaces
 
   # Create an instance for SFXGenerate
   #  * sizelimit: a safety limit for member size, default to 64MB.
@@ -144,7 +152,7 @@ class ZipRubyApp::SFXGenerate
     end
   end
 
-  # High-level (command-line level) interface, support routines
+  #= High-level (command-line level) interface, support routines
 
   def canonicalize_filename(fname, fixedprefix)
     fname = fname.gsub(%r(/+), "/")
@@ -421,15 +429,20 @@ module @@PKGNAME@@
   CONFIG = @@CONFIG@@
   RUBYVER = (RUBY_VERSION.split(".").take(3).map.with_index {|x, i| x.to_i * 1000 ** (2 - i)}.inject(0, :+))
 
+  def self._untaint(x)
+    return x.untaint if RUBYVER < 3000000
+    return x
+  end
+
   class ZippedModule
     def self.search(spec)
       return @@PKGNAME@@::SOURCES[spec]
     end
 
     def initialize(spec, code)
-      @spec = spec.untaint
+      @spec = @@PKGNAME@@::_untaint(spec)
       @encoding = %r/\A(?:#![^\n]*\r?\n)?#.*coding\s*[=:]\s*([\w\-]+)/i =~ code ? $1 : 'UTF-8'
-      @code = code.untaint.force_encoding(@encoding)
+      @code = @@PKGNAME@@::_untaint(code).force_encoding(@encoding)
       @lock = Thread::Mutex.new
       @loaded = false
     end
@@ -591,7 +604,7 @@ module Kernel
   def require_relative(path)
     loc = caller_locations(1,1)[0].absolute_path
     if @@PKGNAME@@::RUBYVER < 3000000 && @@PKGNAME@@::FAKEPATH_REGEX =~ loc
-      require File.expand_path(path, File.dirname(loc).untaint)
+      require File.expand_path(path, @@PKGNAME@@::_untaint(File.dirname(loc)))
     else
       require File.expand_path(path, File.dirname(loc))
       # chain-calling require_relative will use wrong base path
