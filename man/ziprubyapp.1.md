@@ -1,4 +1,4 @@
-ziprubyapp (1) - Make an executable Ruby script bundle using zip archive
+ziprubyapp (1) - Create executable Ruby script bundles using ZIP archives
 ====
 
 ## SYNOPSIS
@@ -9,7 +9,7 @@ ziprubyapp (1) - Make an executable Ruby script bundle using zip archive
       -C, --compress[=VAL]             compression level
       -o, --output=FILE                output file
       -m, --main=MOD                   name of main module to be loaded
-	  -T, --text-archive               use text-based archive format
+      -T, --text-archive               use text-based archive format
       -B, --base64                     encode archive with BASE64
       -D, --provide-data-handle        provide DATA pseudo file-handle
       -I, --includedir=DIR             library path to include
@@ -19,16 +19,16 @@ ziprubyapp (1) - Make an executable Ruby script bundle using zip archive
 
 ## DESCRIPTION
 
-This program bundles several Ruby module files and wraps them as an
-"executable" zip archive.  An output file can be invoked as a Ruby
-script, or (if a source file contains a "`#!`" line) as a directly
-executable command.  Also, it can be handled by (almost every) zip
-archivers as an "sfx" file.
+This program bundles several Ruby module files and wraps them into an
+"executable" ZIP archive. The output file can be invoked as a Ruby
+script, or (if a source file contains a "`#!`" line) executed directly
+as a command. Additionally, it can be handled by almost any ZIP
+archiver as a self-extracting ("SFX") file.
 
 Inside Ruby scripts, the language's `require` facility is extended so
-that The program can simply use `require` or `require-relative`
-statements to load the contained modules, without modifying the
-`$:` variable.
+that the program can simply use `require` or `require_relative`
+statements to load contained modules without modifying the
+`$:` (`$LOAD_PATH`) variable.
 
 ## OPTIONS
 
@@ -36,137 +36,136 @@ statements to load the contained modules, without modifying the
 
 * directory
 
-  If there are only one argument and it is a name of directory, All
-  `*.rb` files under that directory (recursively) are included.  The
-  directory name itself is truncated.
+  If there is only one argument and it is the name of a directory, all
+  `*.rb` files under that directory (recursively) are included. The
+  directory path prefix itself is truncated.
 
 * files
 
-  Otherwise, all files specified in the argument are included.
+  Otherwise, all files specified in the arguments are included.
 
 ### INPUT/OUTPUT OPTIONS
 
 * --main, -m
 
-  specifies the main module which is automatically loaded.  Also, a
-  "she-bang" line and continuous comment lines are copied from the main
-  module to the output.
+  Specifies the main module that is automatically loaded. A "shebang"
+  line and consecutive comment lines are copied from the main module
+  to the output.
 
-  If a directory is specified in the argument, and there is a `__main__.rb`
-  file on top of the directory, that file will be used.  Otherwise, the
-  main module must be explicitly specified.
+  If a directory is specified as the argument and a `__main__.rb` file
+  exists at the root of that directory, that file is used by
+  default. Otherwise, the main module must be explicitly specified.
 
 * --output, -o
 
-  specifies the name of the output file.
+  Specifies the name of the output file.
 
   If omitted, either the name of the source directory or the base name
-  of the main module is taken, with a postfix '`.rbz`' is appended.
+  of the main module is used, with the extension '`.rbz`' appended.
 
-  It is always safer to specify the output file.
+  Explicitly specifying the output file is always recommended.
   
 * --includedir, -I
 
-  specifies locations to search input files, in addition to the current
+  Specifies locations to search for input files in addition to the current
   directory.
-  If this option is specified multiple times, the files will be searched
-  in order of specifications.
+  If this option is specified multiple times, directories are searched
+  in the order specified.
 
-  This option will have two separate effects; when '`-Ilib File.pm`'
-  is specified in the command line, as an example:
+  This option has two separate effects; for example, when '`-Ilib file.rb`'
+  is specified on the command line:
 
-  * the command will include '`lib/File.pm`' to the archive, if
-    '`File.pm`' does not exist.  This behavior can be disabled by
-    specifying '`--no-search-includedir`'.
+  * The command will include '`lib/file.rb`' in the archive if
+    '`file.rb`' does not exist in the working directory. This behavior
+    can be disabled by specifying '`--no-search-includedir`'.
 
-  * the file '`lib/File.pm`' will be included to the archive as
-    '`File.pm`', trimming the library part of the name. This happens
-    either when the file is specified explicitly or through C<-I>
-    option.  This behavior can be disabled by specifying
+  * The file '`lib/file.rb`' will be included in the archive as
+    '`file.rb`', trimming the library directory prefix. This occurs
+    whether the file is specified explicitly or via the `-I`
+    option. This behavior can be disabled by specifying
     '`--no-trim-includedir`'.
 
-    If two or more files will share the same name after this trimming,
-    it will be rejected as an error.
+    If two or more files share the same name after trimming,
+    the operation will fail with an error.
 
 ### ARCHIVE OPTIONS
 
 * --compress, -C
 
-  specifies the compression level for the Deflate algorithm.
+  Specifies the compression level for the Deflate algorithm.
 
-  If `-C` is specified without a digit, the highest level 9 is set.
+  If `-C` is specified without a digit, the maximum compression level 9 is set.
 
-  If not specified at all, the files are not compressed.
-  It makes the content of the script almost transparently visible.
-  Also, the script will not load zlib and other libraries run-time.
+  If omitted entirely, files are stored uncompressed.  This makes
+  script content almost transparently readable.  Additionally,
+  uncompressed scripts will not load `zlib` or other libraries at
+  runtime.
 
-  Outputs generated without `-C` options will not contain decompression
-  functionality, that means you need to add `-0` or similar options
-  when you modify the contents with zip archivers.
+  Outputs generated without the `-C` option do not include decompression
+  code, which means you must pass `-0` (store) or similar flags
+  if modifying the archive content with external ZIP tools.
 
 * --base64, -B
 
-  It will encode the embedded ZIP archive with Base64 encoding.  It
-  makes the script about 33% larger and also loses zip-transparent
-  behavior as an sfx file, in trade for making the output script
-  ASCII-clean.
+  Encodes the embedded ZIP archive with Base64 encoding. This
+  increases script size by approximately 33% and loses ZIP-transparent
+  SFX behavior, in exchange for producing an ASCII-clean script.
 
 * --text-archive, -T
 
-  It will use its own plaintext archive format for storing modules.
-  The output will not be compatible with zip archivers.
+  Uses a custom plaintext archive format for storing modules.
+  The output will not be compatible with standard ZIP archivers.
 
-  Output scripts generated with this option will be plaintext, if all
-  input modules are plaintext in ASCII or some specific
-  ASCII-compatible encoding.  In addition to that, it is easier to
-  modify its content by hand, because the format uses no byte-oriented
-  structure.
+  Output scripts generated with this option will be plain text if all
+  input modules are plain text in ASCII or ASCII-compatible encodings.
+  Additionally, hand-editing contents is easier because the format
+  uses no binary structures.
 
-  This format will be useful when (1) you need to edit module sources
-  embedded in outputs by text editors, or (2) when the whole source
-  code must be transparently visible for auditing or inspections (if
-  even `-C0` is unsatisfactory).
+  This format is useful when (1) embedded module sources need to be
+  edited with text editors, or (2) source code must remain fully
+  transparent for auditing or inspection (where even `-C0` is
+  insufficient).
 
-  The option combination with `-B` is possible, but it is not very
-  meaningful.
+  Combining this option with `-B` is supported, but not particularly useful.
 
 ### CONTENT HANDLING OPTIONS
 
 * --provide-data-handle, -D
 
-  specifies to simulate the DATA file handle for the main module.
-  If enabled, it will set `DATA` constant to a simulated pseudo
-  file handle, providing the script data after `__END__` token.
+  Simulates the `DATA` file handle for the main module.
+  When enabled, it sets the `DATA` constant to a simulated pseudo-file handle,
+  providing script data located after the `__END__` token.
 
-  If the main module does not contain the token, it is ignored.
+  If the main module does not contain the `__END__` token, this option
+  is ignored.
 
-  It is implemented with StringIO in Ruby.  For both performance and
-  simplicity, the relative position of the `__END__` token in the
-  input is remembered when the script is generated.  If you replace
-  the main module by zip archivers, the data will be broken.
+  It is implemented via `StringIO` in Ruby. For performance and
+  simplicity, the relative position of the `__END__` token is recorded
+  during generation. Replacing the main module via external ZIP
+  archivers will invalidate this data.
 
 ### OTHER OPTIONS
 
 * --random-seed
 
-  specifies a seed integer for pseudorandom number generators.  Some
-  features (e.g. `--text-archive`) use random numbers to generate a
-  unique byte sequence in the archive.  This makes the output archives
-  for the same input set to differ time-to-time.  Specifying a random
-  seed will make output somewhat deterministic for the same input.
-  It is not a strong guarantee; the output may still differ by small
-  change of inputs or even small environmental changes such as use of
-  different machines or system library updates.
-  Main expected use of this option is to put the archive outputs to
-  version control systems such as git or subversion.
+  Specifies a seed integer for pseudorandom number generation. Some
+  features (e.g., `--text-archive`) use random numbers to generate
+  unique byte sequences in the archive, causing outputs for identical
+  inputs to vary over time. Specifying a seed ensures deterministic
+  output for identical input sets.  Note that this is not a strict
+  guarantee; output may still vary slightly across different platform
+  environments, machine architectures, or library versions.  The
+  primary use case is ensuring reproducible archive outputs for
+  version control systems such as Git or Subversion.
   
-  In Ruby, seeds will be an 128-bit integer.
+  In Ruby, seeds are 128-bit integers.
 
 ## APIS
 
-There are currently no APIs visible to user scripts except import
-hooks.  Module `ZipRubyApp` is provided in the zipped script, so if
-you need to change some behavior upon packaging, something like
+There are currently no public APIs exposed to user scripts except
+import hooks.  The module `ZipRubyApp` is provided within the zipped
+script. If custom behavior is required upon packaging, guard clauses
+such as:
 
     unless defined? ZipRubyApp
       $:.unshift(__dir__)
@@ -174,61 +173,60 @@ you need to change some behavior upon packaging, something like
 
 can be used.
 
-In Ruby, `require_relative` is useful to load the modules in the
-same directory as the script, and it also works well with this tool.
+In Ruby, `require_relative` is recommended for loading modules located
+in the same directory as the script, and it integrates seamlessly with
+this tool.
 
 ## LIMITATIONS
 
-* Only pure Ruby scripts or modules can be loaded from zip
-  archives. Dynamic loading (*.so, *.dll) will not be available.
+* Only pure Ruby scripts or modules can be loaded from ZIP
+  archives. Native extensions (`*.so`, `*.dll`) cannot be dynamically loaded.
 
-* `__FILE__` tokens in the archived file will have virtual values
-  of "_archivename_/_modulename_", which does not exist in the real
-  file system.  This also holds for the "main script" to be referred
-  to.  It means that the common technique for making a "dual-use"
-  module/script "`if __FILE__ == $0`" will not work.  Instead, please
-  provide a short entry script as a main script.
+* The `__FILE__` token in archived files will contain virtual path
+  strings in the format "`_archivename_/_modulename_`", which do not
+  exist on the real filesystem. This also applies to the main
+  script. Consequently, the common "dual-use" idiom `if __FILE__ ==
+  $0` will not function as expected. Provide a dedicated entry script
+  instead.
 
-* For compactness (and minimal dependency only to core modules), an
-  embedded parser for zip archives is extremely simple.  It can not
-  parse archives with any advanced features or partially-broken
-  archives.  If you modify the packed archive using usual zip
-  archivers, be aware of that.
+* For compactness (and to minimize dependencies to core libraries
+  only), the embedded ZIP parser is extremely simplified. It cannot
+  parse archives utilizing advanced ZIP features or partially
+  corrupted archives. Exercise caution when modifying packed archives
+  with external ZIP tools.
 
-* All files are decoded into the memory at the beginning of the
-  program execution.  It is not wise to include unneeded files into
-  the archive.
+* All files are extracted into memory at program startup. Avoid
+  including unnecessary large files in the archive.
 
-* Module loading is simulated using `Kernel.eval`.  Also,
-  `Kernel.require` is overridden to extend the module search behavior.
-  Although carefully implemented, there may be unknown side-effects,
-  or it may be broken in future versions of Ruby.  Unlike Python or
-  Perl, Ruby does not provide facilities to extend module
-  searching/loading behavior, unfortunately.
+* Module loading is simulated using `Kernel.eval`, and
+  `Kernel.require` is overridden to extend search logic. While
+  carefully implemented, unknown side effects may exist or behavior
+  may change in future Ruby versions. Unlike Python or Perl, Ruby
+  lacks native hooks for extending module resolution.
 
 ## IMPLEMENTATION
 
-A zip archive of module files are stored in the `DATA` section.  A
-minimal parser for Zip archives is embedded to the output script, and
-it will extract the source codes of all modules to an on-memory
-storage at the start-up.  The functions `require` and `require_relative`
-in the Kernel module is extended to load those modules.
+A ZIP archive containing module files is stored in the `DATA`
+section. A minimal parser for ZIP archives is embedded in the output
+script to extract module source code into in-memory storage at
+startup. The `require` and `require_relative` methods in the `Kernel`
+module are overridden to load these in-memory modules.
 
 ## DEPENDENCIES
 
-Zipped scripts generated by this command will not depend on any
-external modules, except those included in the core modules of Ruby
-distributions as of version 2.3.1.
+Zipped scripts generated by this command do not depend on external
+gems or modules, relying solely on standard libraries included in core
+Ruby distributions (version 2.3.1 or later).
 
-## REFERENCE
+## REFERENCES
 
  * [Homepage](https://www.github.com/yoiwa-personal/ziprubyapp)
 
  * [zipperlapp](https://www.github.com/yoiwa-personal/zipperlapp)
 
- * [Python's "zipapp" implementation](https://docs.python.org/en/3/library/zipapp.html)
+ * [Python "zipapp" documentation](https://docs.python.org/en/3/library/zipapp.html)
 
-## AUTHOR/COPYRIGHT
+## AUTHOR / COPYRIGHT
 
 Copyright 2019-2025 Yutaka OIWA <yutaka@oiwa.jp>.
 
@@ -245,11 +243,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 As a special exception to the Apache License, outputs of this
-software, which contain a code snippet copied from this software, may
-be used and distributed under terms of your choice, so long as the
-sole purpose of these works is not redistributing the code snippet,
-this software, or modified works of those.  The "AS-IS BASIS" clause
+software, which contain code snippets copied from this software, may
+be used and distributed under terms of your choice, as long as the
+sole purpose of these works is not to redistribute the code snippets,
+this software, or modified works thereof. The "AS-IS BASIS" clause
 above still applies in these cases.
 
 (In short, you can freely use this software to package YOUR software
-and the Apache License will not apply for YOURS.)
+and the Apache License will not apply to YOURS.)
+

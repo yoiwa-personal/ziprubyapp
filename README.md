@@ -1,24 +1,24 @@
-# ziprubyapp - Make an executable ruby script bundle using zip archive
+# ziprubyapp - Create executable Ruby script bundles using ZIP archives
 
-This program bundles several Ruby module files and wraps them as an
-"executable" zip archive.  An output file can be invoked as a Ruby
-script, or (if a source file contains a `#!` line) as a directly
-executable command.  Also, it can be handled by (almost every) zip
-archiver as an "sfx" file.
+This program bundles several Ruby module files and wraps them into an
+"executable" ZIP archive. An output file can be invoked as a Perl
+script or (if the source file contains a `#!` line) as a directly
+executable command. It can also be handled by almost any ZIP
+archiver as a self-extracting ("sfx") archive.
 
-Inside Ruby scripts, the language's `require` facility is extended so
-that The program can simply use `require` or `require-relative`
-statements to load the contained modules, without modifying the
-`$:` variable.
+Inside Ruby scripts, the built-in `require` facility is extended so
+that the program can simply use `require` or `require_relative`
+statements to load the contained modules without modifying the
+`$LOAD_PATH` (`$:`) variable.
 
 For detailed usage, see
-[a manual page in markdown format](man/ziprubyapp.1.md), or (if
-installed from gem) manual pages in man or html format (run `gem
-contents ziprubyapp` for locations).
+[the manual page in Markdown format](man/ZIPrubyapp.1.md), or (if
+installed via gem) the manual pages in man or HTML format (run `gem
+contents ziprubyapp` to locate them).
 
-## AUTHOR/COPYRIGHT
+## Author, Copyright, and License
 
-Copyright 2019 Yutaka OIWA <yutaka@oiwa.jp>.
+Copyright 2019-2026 Yutaka OIWA <yutaka@oiwa.jp>.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -33,11 +33,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 As a special exception to the Apache License, outputs of this
-software, which contain a code snippet copied from this software, may
-be used and distributed under terms of your choice, so long as the
-sole purpose of these works is not redistributing the code snippet,
-this software, or modified works of those.  The "AS-IS BASIS" clause
+software, which contain code snippets copied from this software, may
+be used and distributed under terms of your choice, as long as the
+sole purpose of these works is not to redistribute the code snippets,
+this software, or modified works thereof. The "AS-IS BASIS" clause
 above still applies in these cases.
 
 (In short, you can freely use this software to package YOUR software
-and the Apache License will not apply for YOURS.)
+and the Apache License will not apply to YOURS.)
+

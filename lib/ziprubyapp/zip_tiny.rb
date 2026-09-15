@@ -21,7 +21,7 @@ class ZipRubyApp::ZipTiny
     # Compress a single entry for zip.  Internally/automatically called
     # from make_zip.
     #
-    #  * self: an entry, created by prepare_zip or prepare_zip_entry.
+    #  * self: an entry, created by prepare_zip or add_entry.
     #  * compressflag: an integer 0--9, corresponding to zlib/zip flags.
     #
     # The self is updated to contain compressed data stream.
@@ -94,7 +94,7 @@ class ZipRubyApp::ZipTiny
 
   attr_reader :sizelimit, :debug, :debug_fh
 
-  # prepare a single entry to zip.
+  # add a single entry to zip.
   #
   # * entname: a file name to be stored in zip file
   # * source: a content to be stores, in one of following
@@ -165,12 +165,10 @@ class ZipRubyApp::ZipTiny
     return (((date & 0xffff) << 16) | (time & 0xffff))
   end
 
-  # Prepare set of entries to be stored in zip.  The input is a list,
-  # each of its member is one of the following:
-  #   * Array [entname, source, modtime]: arguments to prepare_zip_entry
-  #   * String entname: a filename passed to prepare_zip_entry
-  #   * Hash internal: a result of prepare_zip_entry, stored as-is.
-  # The output is to be passed to make_zip.
+  # Add several entries to be stored in zip.
+  # The input is a list, each of its member is one of the following:
+  #   * Array [entname, source, modtime]: arguments to add_entry
+  #   * String entname: a name of the file to be added
   def add_entries(flist)
     flist.each { |e|
       if e.is_a?(String)
