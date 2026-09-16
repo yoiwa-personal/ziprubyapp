@@ -602,7 +602,7 @@ module Kernel
 #END COMMENT
 
   def require_relative(path)
-    loc = caller_locations(1,1)[0].absolute_path
+    loc = File.absolute_path(caller_locations(1,1)[0].path)
     if @@PKGNAME@@::RUBYVER < 3000000 && @@PKGNAME@@::FAKEPATH_REGEX =~ loc
       require File.expand_path(path, @@PKGNAME@@::_untaint(File.dirname(loc)))
     else
